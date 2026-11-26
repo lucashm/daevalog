@@ -61,7 +61,10 @@ static EVENTS: Mutex<Vec<Event>> = Mutex::new(Vec::new());
 
 /// One game frame.
 pub fn frame(packet: &[u8]) {
-    let mut found: Vec<Event> = spawns(packet).into_iter().map(|(id, s)| Event::Spawn(id, s)).collect();
+    let mut found: Vec<Event> = spawns(packet)
+        .into_iter()
+        .map(|(id, s)| Event::Spawn(id, s))
+        .collect();
     found.extend(hit(packet).or_else(|| gone(packet)));
     if !found.is_empty()
         && let Ok(mut events) = EVENTS.lock()
@@ -97,12 +100,19 @@ fn hit(packet: &[u8]) -> Option<Event> {
     let switch = next()? & 0x0F;
     next()?;
     let actor = next()?;
-    if !(4..=7).contains(&switch) || !(100..=9_999_999).contains(&target) || !(100..=9_999_999).contains(&actor) {
+    if !(4..=7).contains(&switch)
+        || !(100..=9_999_999).contains(&target)
+        || !(100..=9_999_999).contains(&actor)
+    {
         return None;
     }
     let skill = i32::from_le_bytes(packet.get(at..at + 4)?.try_into().ok()?);
     // Monsters' skills are 7 digits; a player's class band says who cast it.
-    (is_player_skill(skill) && actor != target).then_some(Event::Hit { actor, target, skill })
+    (is_player_skill(skill) && actor != target).then_some(Event::Hit {
+        actor,
+        target,
+        skill,
+    })
 }
 
 /// An entity leaving the world: `42 36` with flag 7.
@@ -114,7 +124,8 @@ fn gone(packet: &[u8]) -> Option<Event> {
     let id = read_varint(packet, at);
     let zero = read_varint(packet, at + id.length.max(0) as usize);
     let flag = read_varint(packet, at + (id.length + zero.length).max(0) as usize);
-    (id.length > 0 && zero.length > 0 && flag.length > 0 && flag.value == 7).then_some(Event::Gone(id.value))
+    (id.length > 0 && zero.length > 0 && flag.length > 0 && flag.value == 7)
+        .then_some(Event::Gone(id.value))
 }
 
 /// Every player spawn in `data`, each a whole frame: `<length varint> 45 36 <body>`.
@@ -153,12 +164,19 @@ fn spawn(body: &[u8]) -> Option<(i32, Spawn)> {
         return None;
     }
     let after = mask2 + 2 + len;
-    let class = JobClass::from_roster_class(u32::from_le_bytes(body.get(after..after + 4)?.try_into().ok()?));
+    let class = JobClass::from_roster_class(u32::from_le_bytes(
+        body.get(after..after + 4)?.try_into().ok()?,
+    ));
     let faction = *body.get(after + 4)?;
     if !matches!(faction, 1 | 2) {
         return None;
     }
-    let s = Spawn { name: name.to_string(), class, faction, combat_power: combat_power(body).unwrap_or(0) };
+    let s = Spawn {
+        name: name.to_string(),
+        class,
+        faction,
+        combat_power: combat_power(body).unwrap_or(0),
+    };
     Some((id.value, s))
 }
 
@@ -167,7 +185,11 @@ fn spawn(body: &[u8]) -> Option<(i32, Spawn)> {
 /// so the first place that reads as a combat power wins.
 fn combat_power(body: &[u8]) -> Option<i64> {
     let from = body.len().saturating_sub(48);
-    let mark = from + body[from..].windows(3).rposition(|w| w == [0xf4, 0xcb, 0x1f])? + 3;
+    let mark = from
+        + body[from..]
+            .windows(3)
+            .rposition(|w| w == [0xf4, 0xcb, 0x1f])?
+        + 3;
     // shortcut: under 65,536 a stray byte before it would read as the power; no player in PvP has so little.
     [8, 9, 4].iter().find_map(|d| {
         let v = u64::from_le_bytes(body.get(mark + d..mark + d + 8)?.try_into().ok()?);
@@ -242,14 +264,20 @@ impl Pvp {
                 Event::Gone(id) => {
                     self.spawned.remove(&id);
                 }
-                Event::Hit { actor, target, skill } => {
+                Event::Hit {
+                    actor,
+                    target,
+                    skill,
+                } => {
                     let Some(me) = me else { continue };
                     // A player outside your party; never a monster, a spirit or you.
                     let foe = |id: i32| {
                         id != me
                             && !storage.is_mob(id)
                             && !storage.is_summon(id)
-                            && storage.get_nickname(id).is_none_or(|n| !party.contains_key(&n))
+                            && storage
+                                .get_nickname(id)
+                                .is_none_or(|n| !party.contains_key(&n))
                     };
                     let actor = summon_resolver::resolve(actor, &summons);
                     if target == me && foe(actor) {
@@ -262,12 +290,23 @@ impl Pvp {
                 }
             }
         }
-        self.fought.retain(|_, f| now - f.hit_me.max(f.hit_by_me) < FOUGHT_MS);
+        self.fought
+            .retain(|_, f| now - f.hit_me.max(f.hit_by_me) < FOUGHT_MS);
 
-        let targeted = self.fought.iter().filter(|(_, f)| f.hit_by_me > 0).max_by_key(|(_, f)| f.hit_by_me).map(|(&id, _)| id);
+        let targeted = self
+            .fought
+            .iter()
+            .filter(|(_, f)| f.hit_by_me > 0)
+            .max_by_key(|(_, f)| f.hit_by_me)
+            .map(|(&id, _)| id);
         // Those you fought, then the other side's players in range.
         let enemy_near = |s: &Spawn| mine.is_some_and(|m| s.faction != m);
-        let ids = self.fought.keys().copied().chain(self.spawned.iter().filter(|(_, s)| enemy_near(s)).map(|(&id, _)| id));
+        let ids = self.fought.keys().copied().chain(
+            self.spawned
+                .iter()
+                .filter(|(_, s)| enemy_near(s))
+                .map(|(&id, _)| id),
+        );
         let mut list: Vec<(i64, Enemy)> = Vec::new();
         for id in ids {
             if list.iter().any(|(_, e)| e.id == id) {
@@ -275,10 +314,15 @@ impl Pvp {
             }
             let (f, s) = (self.fought.get(&id), self.spawned.get(&id));
             let job = f.and_then(|f| f.job).or(s.and_then(|s| s.class));
-            let job = job.map(|j| crate::meter::job_names(j.class_name())).unwrap_or(("", ""));
+            let job = job
+                .map(|j| crate::meter::job_names(j.class_name()))
+                .unwrap_or(("", ""));
             let enemy = Enemy {
                 id,
-                name: storage.get_nickname(id).or(s.map(|s| s.name.clone())).unwrap_or_else(|| format!("#{id}")),
+                name: storage
+                    .get_nickname(id)
+                    .or(s.map(|s| s.name.clone()))
+                    .unwrap_or_else(|| format!("#{id}")),
                 job: job.1.to_string(),
                 job_key: job.0.to_string(),
                 combat_power: s.map_or(0, |s| s.combat_power),
@@ -299,7 +343,10 @@ impl Pvp {
     }
 
     pub fn message(&self) -> Message<'_> {
-        Message { kind: "pvp", enemies: &self.last }
+        Message {
+            kind: "pvp",
+            enemies: &self.last,
+        }
     }
 }
 
@@ -309,7 +356,10 @@ mod tests {
 
     fn hex(s: &str) -> Vec<u8> {
         let s: String = s.split_whitespace().collect();
-        (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
     }
 
     /// A spawn frame for `name`, class 6, `faction`, ending in `tail`.
@@ -341,9 +391,22 @@ mod tests {
         let got = spawns(&data);
         assert_eq!(got.len(), 1);
         let (id, s) = &got[0];
-        assert_eq!((*id, s.name.as_str(), s.class, s.faction, s.combat_power), (3755, "Frimbus", Some(JobClass::Gladiator), 2, 197_737));
-        assert_eq!(spawns(&spawn_frame("ab1d", "Tai", 1, TAI))[0].1.combat_power, 35_897);
-        assert_eq!(spawns(&spawn_frame("ab1d", "Alt", 1, ALT))[0].1.combat_power, 13_023);
+        assert_eq!(
+            (*id, s.name.as_str(), s.class, s.faction, s.combat_power),
+            (3755, "Frimbus", Some(JobClass::Gladiator), 2, 197_737)
+        );
+        assert_eq!(
+            spawns(&spawn_frame("ab1d", "Tai", 1, TAI))[0]
+                .1
+                .combat_power,
+            35_897
+        );
+        assert_eq!(
+            spawns(&spawn_frame("ab1d", "Alt", 1, ALT))[0]
+                .1
+                .combat_power,
+            13_023
+        );
         // A frame cut short isn't read.
         let f = spawn_frame("ab1d", "Frimbus", 2, FRIMBUS);
         assert!(spawns(&f[..f.len() - 1]).is_empty());
@@ -352,10 +415,20 @@ mod tests {
     #[test]
     fn reads_a_class_skills_hit_and_a_despawn() {
         // len, 04 38, target 2259 (d3 11), switch 05, flag 00, actor 2260 (d4 11), skill 11010000.
-        assert!(matches!(hit(&hex("0f0438d3110500d411d0ffa700")), Some(Event::Hit { actor: 2260, target: 2259, skill: 11_010_000 })));
+        assert!(matches!(
+            hit(&hex("0f0438d3110500d411d0ffa700")),
+            Some(Event::Hit {
+                actor: 2260,
+                target: 2259,
+                skill: 11_010_000
+            })
+        ));
         // A monster's 7-digit skill.
         assert!(hit(&hex("0f0438d3110500d41140420f00")).is_none());
-        assert!(matches!(gone(&hex("084236d3110007")), Some(Event::Gone(2259))));
+        assert!(matches!(
+            gone(&hex("084236d3110007")),
+            Some(Event::Gone(2259))
+        ));
         // A combat death (flag 3) isn't leaving.
         assert!(gone(&hex("084236d3110003")).is_none());
     }
@@ -372,10 +445,23 @@ mod tests {
         storage.set_party_roster(vec![("Mate".into(), PartyMember::default())], true);
         let mut pvp = Pvp::default();
         let events = |e: Vec<Event>| EVENTS.lock().unwrap().extend(e);
-        let s = |name: &str, faction, cp| Spawn { name: name.into(), class: Some(JobClass::Cleric), faction, combat_power: cp };
+        let s = |name: &str, faction, cp| Spawn {
+            name: name.into(),
+            class: Some(JobClass::Cleric),
+            faction,
+            combat_power: cp,
+        };
         events(vec![
-            Event::Hit { actor: 200, target: 100, skill: 11_010_000 },
-            Event::Hit { actor: 300, target: 100, skill: 17_010_000 },
+            Event::Hit {
+                actor: 200,
+                target: 100,
+                skill: 11_010_000,
+            },
+            Event::Hit {
+                actor: 300,
+                target: 100,
+                skill: 17_010_000,
+            },
             // In range: two Elyos and one of ours.
             Event::Spawn(500, s("Lurker", 1, 150_000)),
             Event::Spawn(600, s("Big", 1, 250_000)),
@@ -390,15 +476,44 @@ mod tests {
         h.set_skill_code(15_010_000);
         h.set_damage(1);
         storage.append_damage(h);
-        events(vec![Event::Hit { actor: 100, target: 400, skill: 11_010_000 }, Event::Gone(500)]);
+        events(vec![
+            Event::Hit {
+                actor: 100,
+                target: 400,
+                skill: 11_010_000,
+            },
+            Event::Gone(500),
+        ]);
         pvp.update(&storage, 2402, 7_000);
-        let got: Vec<_> = pvp.last.iter().map(|e| (e.name.as_str(), e.job_key.as_str(), e.combat_power, e.targeted, e.fought)).collect();
+        let got: Vec<_> = pvp
+            .last
+            .iter()
+            .map(|e| {
+                (
+                    e.name.as_str(),
+                    e.job_key.as_str(),
+                    e.combat_power,
+                    e.targeted,
+                    e.fought,
+                )
+            })
+            .collect();
         assert_eq!(
             got,
-            vec![("Prey", "", 0, true, true), ("Foe", "GLADIATOR", 180_000, false, true), ("Big", "CLERIC", 250_000, false, false)]
+            vec![
+                ("Prey", "", 0, true, true),
+                ("Foe", "GLADIATOR", 180_000, false, true),
+                ("Big", "CLERIC", 250_000, false, false)
+            ]
         );
         // A minute after the last hit, Foe is only in range.
         pvp.update(&storage, 2402, 61_500);
-        assert_eq!(pvp.last.iter().map(|e| (e.id, e.fought)).collect::<Vec<_>>(), vec![(400, true), (600, false), (200, false)]);
+        assert_eq!(
+            pvp.last
+                .iter()
+                .map(|e| (e.id, e.fought))
+                .collect::<Vec<_>>(),
+            vec![(400, true), (600, false), (200, false)]
+        );
     }
 }

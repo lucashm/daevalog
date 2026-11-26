@@ -58,7 +58,10 @@ pub struct History {
 impl History {
     pub fn new(dir: PathBuf) -> Result<Self> {
         fs::create_dir_all(&dir)?;
-        Ok(Self { dir, cache: Mutex::default() })
+        Ok(Self {
+            dir,
+            cache: Mutex::default(),
+        })
     }
 
     fn path(&self, id: &str) -> Option<PathBuf> {
@@ -100,10 +103,10 @@ impl History {
             .into_iter()
             .take(limit)
             .filter_map(|(modified, p)| {
-                if let Some((t, s)) = self.cache.lock().get(&p) {
-                    if *t == modified {
-                        return s.clone();
-                    }
+                if let Some((t, s)) = self.cache.lock().get(&p)
+                    && *t == modified
+                {
+                    return s.clone();
                 }
                 // Parsed outside the lock; a file that won't parse is remembered as None.
                 let s = fs::read(&p)
@@ -125,7 +128,10 @@ const IDLE_GAP_MS: i64 = 3_000;
 
 fn active_ms(mut hits: Vec<i64>) -> i64 {
     hits.sort_unstable();
-    hits.windows(2).map(|w| w[1] - w[0]).filter(|&g| g <= IDLE_GAP_MS).sum()
+    hits.windows(2)
+        .map(|w| w[1] - w[0])
+        .filter(|&g| g <= IDLE_GAP_MS)
+        .sum()
 }
 
 pub fn summarize(r: &FightRecord) -> FightSummary {
@@ -138,7 +144,10 @@ pub fn summarize(r: &FightRecord) -> FightSummary {
             let skills = || r.details.skills.iter().filter(|s| s.actor_id == a.actor_id);
             let death_ms = || -> Vec<i64> {
                 let deaths = r.details.deaths.iter().flatten();
-                deaths.filter(|d| d.actor_id == a.actor_id).map(|d| d.ts_ms).collect()
+                deaths
+                    .filter(|d| d.actor_id == a.actor_id)
+                    .map(|d| d.ts_ms)
+                    .collect()
             };
             let damage: i64 = skills().map(|s| s.dmg as i64).sum();
             // shortcut: a skill's damage is spread evenly over its hits (only their times are kept).
@@ -175,8 +184,14 @@ pub fn summarize(r: &FightRecord) -> FightSummary {
                 dps: damage as f64 / seconds,
                 crit_rate: rate(crit),
                 back_rate: rate(back),
-                active: (active_ms(skills().filter(|s| !s.is_dot).flat_map(|s| s.hit_timestamps.iter().copied()).collect())
-                    as f64 / r.duration_ms.max(1) as f64).min(1.0),
+                active: (active_ms(
+                    skills()
+                        .filter(|s| !s.is_dot)
+                        .flat_map(|s| s.hit_timestamps.iter().copied())
+                        .collect(),
+                ) as f64
+                    / r.duration_ms.max(1) as f64)
+                    .min(1.0),
                 heal: r
                     .details
                     .heal_skills
@@ -243,7 +258,10 @@ mod tests {
         }))
         .unwrap();
         // The last hit, past the recorded length, lands in the last slice.
-        assert_eq!(summarize(&record).players[0].damage_bins, vec![300, 300, 300]);
+        assert_eq!(
+            summarize(&record).players[0].damage_bins,
+            vec![300, 300, 300]
+        );
     }
 
     #[test]

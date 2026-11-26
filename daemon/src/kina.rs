@@ -74,20 +74,38 @@ mod tests {
     use super::*;
 
     fn hex(s: &str) -> Vec<u8> {
-        s.split_whitespace().map(|b| u8::from_str_radix(b, 16).unwrap()).collect()
+        s.split_whitespace()
+            .map(|b| u8::from_str_radix(b, 16).unwrap())
+            .collect()
     }
 
     #[test]
     fn reads_kina_and_skips_other_stacks() {
         // The length varint is the parser's own; any one-byte value does here.
-        let kina = hex("2B 1B 56 01 01 00 3E 35 08 00 00 6C 02 00 3F 33 70 37 4B F5 4A 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0B 00 00");
+        let kina = hex(
+            "2B 1B 56 01 01 00 3E 35 08 00 00 6C 02 00 3F 33 70 37 4B F5 4A 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0B 00 00",
+        );
         assert_eq!(read(&kina), Some(Kina::Balance(4_912_459)));
-        assert_eq!(read(&hex("13 A6 FF A2 3D 01 00 00 00 00 00 4D 80 5F EB A1 01 00 00")), Some(Kina::Daily(81_314)));
-        assert_eq!(read(&hex("13 A5 FF 9A DF 01 00 00 00 00 00 5F 2D 64 EB A1 01 00 00")), Some(Kina::Daily(122_778)));
+        assert_eq!(
+            read(&hex(
+                "13 A6 FF A2 3D 01 00 00 00 00 00 4D 80 5F EB A1 01 00 00"
+            )),
+            Some(Kina::Daily(81_314))
+        );
+        assert_eq!(
+            read(&hex(
+                "13 A5 FF 9A DF 01 00 00 00 00 00 5F 2D 64 EB A1 01 00 00"
+            )),
+            Some(Kina::Daily(122_778))
+        );
         // Real bytes around kina in a login bag.
-        let bag = hex("2B 11 56 00 00 00 00 33 D5 06 00 00 55 02 00 3F 33 70 37 FB 97 4B 00 00 00 00 00 01 00 00 00");
+        let bag = hex(
+            "2B 11 56 00 00 00 00 33 D5 06 00 00 55 02 00 3F 33 70 37 FB 97 4B 00 00 00 00 00 01 00 00 00",
+        );
         assert_eq!(read(&bag), Some(Kina::Balance(4_954_107)));
-        let other = hex("2B 1B 56 01 00 00 52 FF 0B 00 00 4F 00 00 5C 44 DE 1F 01 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 00");
+        let other = hex(
+            "2B 1B 56 01 00 00 52 FF 0B 00 00 4F 00 00 5C 44 DE 1F 01 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 00",
+        );
         assert_eq!(read(&other), None);
         assert_eq!(read(&hex("2B 1B 56 01 01 00")), None);
     }

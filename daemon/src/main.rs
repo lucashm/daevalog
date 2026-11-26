@@ -1,14 +1,21 @@
-//! aion2-meterd: captures AION 2's traffic on Linux, runs it through A2Tools'
-//! parser, and serves live combat state to the Quickshell overlay over a
-//! Unix socket.
+//! Shared capture/parser daemon. Linux uses the existing Unix socket;
+//! Windows uses private stdin/stdout pipes owned by the desktop app.
 
 mod capture;
 mod characters;
 mod cubes;
 mod dispatch;
+#[cfg(not(windows))]
+mod game;
+#[cfg(windows)]
+#[path = "windows/game.rs"]
 mod game;
 mod history;
 mod icons;
+#[cfg(not(windows))]
+mod ipc;
+#[cfg(windows)]
+#[path = "windows/ipc.rs"]
 mod ipc;
 mod kina;
 mod meter;
@@ -53,6 +60,14 @@ USAGE: aion2-meterd [OPTIONS]
   --print           print each state update to stdout (debugging)
 ";
 
+#[cfg(windows)]
+const WINDOWS_USAGE: &str = "\
+Windows: --stdio is required (JSON commands on stdin, events on stdout).
+         --list-interfaces prints Npcap adapters as JSON and exits.
+         --stay-open keeps replay history available until the parent closes stdin.
+         --socket is unavailable. Install Npcap in WinPcap API-compatible mode.
+";
+
 struct Args {
     iface: Option<String>,
     pcap: Option<PathBuf>,
@@ -62,6 +77,12 @@ struct Args {
     lang: String,
     socket: PathBuf,
     print: bool,
+    #[cfg(windows)]
+    stdio: bool,
+    #[cfg(windows)]
+    list_interfaces: bool,
+    #[cfg(windows)]
+    stay_open: bool,
 }
 
 fn parse_args() -> Result<Args> {
@@ -74,6 +95,12 @@ fn parse_args() -> Result<Args> {
         lang: "en".into(),
         socket: ipc::default_socket_path(),
         print: false,
+        #[cfg(windows)]
+        stdio: false,
+        #[cfg(windows)]
+        list_interfaces: false,
+        #[cfg(windows)]
+        stay_open: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -85,19 +112,40 @@ fn parse_args() -> Result<Args> {
             "--record" => a.record = Some(value()?.into()),
             "--data" => a.data = Some(value()?.into()),
             "--lang" => a.lang = value()?,
+            #[cfg(not(windows))]
             "--socket" => a.socket = value()?.into(),
+            #[cfg(windows)]
+            "--stdio" => a.stdio = true,
+            #[cfg(windows)]
+            "--list-interfaces" => a.list_interfaces = true,
+            #[cfg(windows)]
+            "--stay-open" => a.stay_open = true,
             "--print" => a.print = true,
             "-h" | "--help" => {
                 print!("{USAGE}");
+                #[cfg(windows)]
+                print!("{WINDOWS_USAGE}");
                 std::process::exit(0);
             }
             other => anyhow::bail!("unknown option {other}\n\n{USAGE}"),
         }
     }
+    #[cfg(windows)]
+    anyhow::ensure!(
+        !a.stay_open || (a.stdio && a.pcap.is_some()),
+        "--stay-open requires --stdio and --pcap"
+    );
     Ok(a)
 }
 
 fn data_home() -> PathBuf {
+    #[cfg(windows)]
+    return std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("aion2-meter");
+
+    #[cfg(not(windows))]
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -115,6 +163,8 @@ fn find_data_dir(given: Option<PathBuf>) -> Option<PathBuf> {
     candidates.push(data_home().join("data"));
     candidates.push("/usr/share/aion2-meter/data".into());
     if let Some(d) = exe_dir {
+        #[cfg(windows)]
+        candidates.push(d.join("data"));
         // target/{debug,release}/ -> repo root
         candidates.push(d.join("../../third_party/a2tools/src/data"));
     }
@@ -140,6 +190,23 @@ fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .init();
     let args = parse_args()?;
+    #[cfg(windows)]
+    {
+        if args.list_interfaces {
+            let devices = pcap::Device::list().context("Cannot list Npcap adapters")?;
+            let devices: Vec<_> = devices.into_iter().map(|d| serde_json::json!({
+                "name": d.name, "description": d.desc,
+                "addresses": d.addresses.iter().map(|a| a.addr.to_string()).collect::<Vec<_>>()
+            })).collect();
+            println!("{}", serde_json::to_string(&devices)?);
+            return Ok(());
+        }
+        anyhow::ensure!(
+            args.stdio,
+            "Use --stdio to run the Windows daemon.\n{WINDOWS_USAGE}"
+        );
+        anyhow::ensure!(!args.print, "--print cannot be combined with --stdio");
+    }
 
     // ── parser core ────────────────────────────────────────────────────────
     let skills = SkillLookup::new();
@@ -231,11 +298,13 @@ fn main() -> Result<()> {
             realtime: args.realtime,
         },
         None => {
-            let iface = args
-                .iface
-                .clone()
-                .or_else(capture::default_route_iface)
-                .unwrap_or_else(|| "any".into());
+            let iface = args.iface.clone().or_else(capture::default_route_iface);
+            #[cfg(not(windows))]
+            let iface = iface.unwrap_or_else(|| "any".into());
+            #[cfg(windows)]
+            let iface = iface.context(
+                "No Npcap adapter matches the default route. Select an adapter in the desktop app.",
+            )?;
             capture::Source::Live { iface }
         }
     };
@@ -336,9 +405,19 @@ fn main() -> Result<()> {
     let mut last_sent: Option<meter::OverlayState> = None;
     let mut last_kina = (-1, -1);
     let mut last_save = Instant::now();
+    #[cfg(windows)]
+    let mut replay_finished = false;
     loop {
         std::thread::sleep(Duration::from_millis(200));
         while let Ok(cmd) = cmd_rx.try_recv() {
+            #[cfg(windows)]
+            if matches!(cmd, Command::Shutdown) {
+                let records = meter.lock().calc.snapshot_boss_fights_force();
+                save_fights(&history, &clients, &storage, records);
+                pets.lock().save();
+                cubes.lock().save();
+                return Ok(());
+            }
             handle_command(cmd, &meter, &history, &clients, &storage);
             force_send.store(true, std::sync::atomic::Ordering::Relaxed);
         }
@@ -346,7 +425,7 @@ fn main() -> Result<()> {
         characters.update(&storage, capture.game_running, now_ms());
         // The game's word on your server, else your last-played character's: right after
         // a restart mid-session the game hasn't said, and pets and faction must not wait.
-        let home = characters.list_server(storage.home_server_id());
+        let home = characters.list_server(characters::home_server_id(&storage));
         let mut state = meter.lock().state(capture);
         state.faction = meter::faction_of(home);
         let forced = force_send.swap(false, std::sync::atomic::Ordering::Relaxed);
@@ -359,13 +438,18 @@ fn main() -> Result<()> {
             last_sent = Some(state);
         }
         if pvp.update(&storage, home, now_ms()) || forced {
-            if args.print { println!("{}", serde_json::to_string(&pvp.message())?); }
+            if args.print {
+                println!("{}", serde_json::to_string(&pvp.message())?);
+            }
             clients.broadcast(&serde_json::to_string(&pvp.message())?);
         }
         let kina = (kina::get(), kina::daily());
         if kina.0 >= 0 && (forced || kina != last_kina) {
             last_kina = kina;
-            clients.broadcast(&serde_json::json!({ "type": "kina", "balance": kina.0, "daily": kina.1 }).to_string());
+            clients.broadcast(
+                &serde_json::json!({ "type": "kina", "balance": kina.0, "daily": kina.1 })
+                    .to_string(),
+            );
         }
         if forced || characters.changed {
             characters.changed = false;
@@ -427,7 +511,10 @@ fn main() -> Result<()> {
             let records = meter.lock().calc.snapshot_boss_fights();
             save_fights(&history, &clients, &storage, records);
         }
-        if replay && parse_done.load(std::sync::atomic::Ordering::Relaxed) {
+        let replay_done = replay && parse_done.load(std::sync::atomic::Ordering::Relaxed);
+        #[cfg(windows)]
+        let replay_done = replay_done && !replay_finished;
+        if replay_done {
             let records = meter.lock().calc.snapshot_boss_fights_force();
             save_fights(&history, &clients, &storage, records);
             characters.save();
@@ -435,6 +522,12 @@ fn main() -> Result<()> {
             if args.print {
                 let state = meter.lock().state(status.lock().clone());
                 println!("{}", serde_json::to_string_pretty(&state)?);
+            }
+            #[cfg(windows)]
+            if args.stay_open {
+                replay_finished = true;
+                clients.broadcast("{\"type\":\"replayFinished\"}");
+                continue;
             }
             return Ok(());
         }
@@ -469,7 +562,11 @@ fn save_fights(
         unmask_names(&mut record, storage);
         // Yours as the game last stated it when no roster did, as on the live meter.
         if own_cp::get() > 0 {
-            for a in record.actors.iter_mut().filter(|a| Some(a.actor_id as i64) == me && a.combat_power == 0) {
+            for a in record
+                .actors
+                .iter_mut()
+                .filter(|a| Some(a.actor_id as i64) == me && a.combat_power == 0)
+            {
                 a.combat_power = own_cp::get();
             }
         }
@@ -505,7 +602,9 @@ fn handle_command(
             let (history, clients) = (history.clone(), clients.clone());
             std::thread::spawn(move || {
                 let fights = history.list(limit.unwrap_or(30));
-                clients.broadcast(&serde_json::json!({ "type": "history", "fights": fights }).to_string());
+                clients.broadcast(
+                    &serde_json::json!({ "type": "history", "fights": fights }).to_string(),
+                );
             });
         }
         Command::Fight { id } => {
@@ -527,5 +626,7 @@ fn handle_command(
             let msg = serde_json::json!({ "type": "fight", "summary": history::summarize(&record), "skills": skills });
             clients.broadcast(&msg.to_string());
         }
+        #[cfg(windows)]
+        Command::Shutdown => unreachable!("handled by the main loop"),
     }
 }

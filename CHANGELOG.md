@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- Windows companion rebuilt with the selected Command visuals and Questlog-like
+  navigation using Tauri 2, React and TypeScript. Includes real-data overview,
+  combat, pet filters/pins, saved-fight drill-down, native egui overlays,
+  layout anchors, guarded click-through, event/cube reminders and tray lifecycle.
+- Windows companion has the newer Linux features too: Characters (class, level,
+  combat power, gear score, Odyle energy with its recharge), PvP (enemies around
+  you, who's hitting you, their HP and combat power), kina per second while
+  farming with the daily cap, CP and deaths on the meter, a death timeline and
+  party DPS over the fight in saved fights, and Analytics (runs by player, class,
+  boss or run, with a date range, filters, trends and best runs)
+- Two more native Windows widgets, PvP and Kina/s; saved layouts gain them
+- Preserve existing capture formats and add opt-in Windows replay keep-open for
+  companion history inspection; Linux and default replay EOF behavior remain.
+- Native Windows x64 Daevalog desktop app with shared capture/parser/DPS engine,
+  Npcap support, compact always-on-top and click-through modes, fight history,
+  pet collection data, adapter selection and pcap replay.
+- Portable Windows ZIPs/checksums in CI and tagged releases, plus Windows
+  setup/build/troubleshooting documentation. Npcap remains a separate install.
+- Keep the existing Linux desktop, Unix socket, services and installation path.
+- Characters, PvP and kina from the daemon now build against the pinned A2Tools
+  parser (your home server is read from your own self record)
+
 ## 0.1.1
 
 - Renamed to Daevalog (commands, service and paths keep aion2-meter, so existing installs keep working)

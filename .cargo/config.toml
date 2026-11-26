@@ -1,3 +1,8 @@
 [build]
 # cap total parallelism (rustc LLVM threads share this jobserver too) so builds leave cores for the game
 jobs = 8
+
+# Self-contained Windows executables, with no VC++ redistributable to install.
+# This target-specific flag does not affect Linux builds.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

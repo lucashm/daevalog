@@ -134,7 +134,8 @@ impl Meter {
         // A2Tools' window for a saved fight's deaths: its hits, plus 5s for a wipe.
         // shortcut: counted under the id each death was logged with, not mapped like a saved fight's; if your own churn ids, a death can miss your row.
         let deaths = if self.fight.0 > 0 {
-            self.storage.deaths_between(self.fight.0, self.fight.1 + 5_000)
+            self.storage
+                .deaths_between(self.fight.0, self.fight.1 + 5_000)
         } else {
             Vec::new()
         };
@@ -322,8 +323,8 @@ mod tests {
         use a2tools::combat::data_storage::DataStorage;
         use a2tools::combat::dps_calculator::DpsCalculator;
         use a2tools::combat::ping_tracker::PingTracker;
-        use a2tools::i18n::lookup::{NpcLookup, SkillLookup};
         use a2tools::entity::damage_packet::ParsedDamagePacket;
+        use a2tools::i18n::lookup::{NpcLookup, SkillLookup};
 
         let hit = |actor, at| {
             let mut p = ParsedDamagePacket::new();
@@ -339,13 +340,25 @@ mod tests {
         storage.append_nickname(2260, "Faffy");
         storage.append_damage(hit(2259, 1_000));
         storage.append_damage(hit(2260, 9_000));
-        for (at, id, hp) in [(2_000, 2259, 5_000), (2_000, 2260, 5_000), (4_000, 2259, 0), (6_000, 2259, 2_500), (12_000, 2259, 0), (30_000, 2260, 0)] {
+        for (at, id, hp) in [
+            (2_000, 2259, 5_000),
+            (2_000, 2260, 5_000),
+            (4_000, 2259, 0),
+            (6_000, 2259, 2_500),
+            (12_000, 2259, 0),
+            (30_000, 2260, 0),
+        ] {
             set_override(Some(at));
             storage.note_hp(id, hp);
         }
         set_override(None);
         let ping = Arc::new(PingTracker::new());
-        let mut calc = DpsCalculator::new(storage.clone(), Arc::new(SkillLookup::new()), Arc::new(NpcLookup::new()), ping.clone());
+        let mut calc = DpsCalculator::new(
+            storage.clone(),
+            Arc::new(SkillLookup::new()),
+            Arc::new(NpcLookup::new()),
+            ping.clone(),
+        );
         storage.set_local_player_id(Some(2259));
         calc.set_target_selection_mode("lastHitByMe");
         let state = super::Meter::new(calc, storage, ping).state(Default::default());

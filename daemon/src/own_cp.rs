@@ -63,7 +63,10 @@ mod tests {
     use super::*;
 
     fn hex(s: &str) -> Vec<u8> {
-        (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
     }
 
     /// A self record's head, then the last 80 bytes of a real one.
@@ -78,9 +81,15 @@ mod tests {
 
     #[test]
     fn reads_the_change_frame_and_the_self_record() {
-        assert_eq!(read(&hex("16563661a101000000000042a3010000000000")), Some(106_849));
+        assert_eq!(
+            read(&hex("16563661a101000000000042a3010000000000")),
+            Some(106_849)
+        );
         // Mid-fight: now sunk to 110,596 under a debuff, peak 123,536; we show now.
-        assert_eq!(read(&hex("16563604b001000000000090e2010000000000")), Some(110_596));
+        assert_eq!(
+            read(&hex("16563604b001000000000090e2010000000000")),
+            Some(110_596)
+        );
         assert_eq!(read(&record()), Some(106_849));
     }
 
