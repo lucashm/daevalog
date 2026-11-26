@@ -4,9 +4,10 @@ An AION 2 companion app: a damage meter, pet tracker, map and alerts that run na
 It shows live combat numbers as small widgets on top of the game, plus an app window for everything else.
 
 **Windows 10/11 x64:** a Questlog-style companion with live DPS, skills,
-pet collection, fight history, native overlay widgets, reminders and a system
-tray is also available. Install Npcap and WebView2 separately and extract the
-Windows ZIP. See the [Windows setup, features and
+characters, PvP, kina rate, pet collection, fight history and analytics, native
+overlay widgets, reminders and a system tray is also available. Install Npcap
+separately, then run the Windows installer (`…-windows-setup.exe`) or extract the
+portable ZIP. See the [Windows setup, features and
 build guide](docs/windows.md). The instructions below describe the Linux app.
 
 <!-- Screenshot: add docs/screenshot.png and uncomment the next line.

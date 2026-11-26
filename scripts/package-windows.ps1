@@ -41,4 +41,28 @@ try {
     $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText("$zip.sha256", "$hash  $name.zip`n")
     Write-Output $zip
+
+    # The installer: Tauri's NSIS bundle, with the daemon as a sidecar (installed
+    # next to the app as aion2-meterd.exe) and the game data under data\.
+    $target = 'x86_64-pc-windows-msvc'
+    New-Item -ItemType Directory -Force -Path 'windows/binaries' | Out-Null
+    Copy-Item -LiteralPath "target/$target/release/aion2-meterd.exe" -Destination "windows/binaries/aion2-meterd-$target.exe" -Force
+    # NSIS needs a numeric version: a release tag's (v1.2.3), else the app's own.
+    $semver = if ($Version -match '^v?(\d+\.\d+\.\d+)$') { $Matches[1] } else { (Get-Content -Raw 'windows/tauri.conf.json' | ConvertFrom-Json).version }
+    $versionConfig = Join-Path $root "target/tauri-version.conf.json"
+    [IO.File]::WriteAllText($versionConfig, "{`"version`":`"$semver`"}")
+    $bundleDir = "target/$target/release/bundle/nsis"
+    if (Test-Path -LiteralPath $bundleDir) { Remove-Item -LiteralPath $bundleDir -Recurse -Force }
+    Push-Location 'windows'
+    try {
+        & ./ui/node_modules/.bin/tauri.cmd build --ci --target $target --bundles nsis --config tauri.installer.conf.json --config $versionConfig
+        if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+    } finally { Pop-Location }
+    $setup = Get-ChildItem -LiteralPath $bundleDir -Filter '*-setup.exe' | Select-Object -First 1
+    if (-not $setup) { throw "No installer in $bundleDir." }
+    $installer = Join-Path $dist "$name-setup.exe"
+    Copy-Item -LiteralPath $setup.FullName -Destination $installer -Force
+    $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText("$installer.sha256", "$hash  $name-setup.exe`n")
+    Write-Output $installer
 } finally { Pop-Location }

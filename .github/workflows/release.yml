@@ -46,6 +46,8 @@ jobs:
           path: |
             dist/*-x86_64-windows.zip
             dist/*-x86_64-windows.zip.sha256
+            dist/*-x86_64-windows-setup.exe
+            dist/*-x86_64-windows-setup.exe.sha256
           if-no-files-found: error
 
   publish:

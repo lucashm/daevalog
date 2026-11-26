@@ -7,16 +7,25 @@ Obsidian's Questlog-like sidebar and companion pages.
 
 ## Install
 
+Each release has two Windows downloads: an installer
+(`aion2-meter-…-x86_64-windows-setup.exe`) and a portable ZIP. Pick one.
+
 1. Install **Npcap x64** from [npcap.com](https://npcap.com/#download), with
-   **WinPcap API-compatible Mode** enabled. Daevalog does not install or bundle it.
-2. Install Microsoft's [Evergreen WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
-   It is normally present on Windows 11. The portable ZIP does not install it.
-3. Extract the whole Windows ZIP and open `aion2-meter-windows.exe`.
-   Keep `aion2-meterd.exe` and `data/` beside it.
-4. Start AION 2 and enter combat. Capture starts automatically unless you turn
+   **WinPcap API-compatible Mode** enabled. Daevalog does not install or bundle it;
+   the installer offers to open its download page when it's missing.
+2. **Installer:** run the setup and follow it. It installs for your user only (no
+   administrator prompt), adds Daevalog to the Start menu, installs Microsoft's
+   WebView2 Runtime if it is missing, and has an uninstaller in Windows Settings →
+   Apps. Your saved fights and settings in `%LOCALAPPDATA%\aion2-meter` stay when
+   you uninstall or update.
+
+   **Portable ZIP:** install Microsoft's [Evergreen WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)
+   if it's missing (it is normally present on Windows 11), extract the whole ZIP
+   and open `aion2-meter-windows.exe`. Keep `aion2-meterd.exe` and `data/` beside it.
+3. Start AION 2 and enter combat. Capture starts automatically unless you turn
    that preference off. For a VPN, choose and save the correct adapter in Settings,
    then start/restart capture.
-5. In **Overlay studio**, turn on **Show overlays**, arrange the widgets and,
+4. In **Overlay studio**, turn on **Show overlays**, arrange the widgets and,
    once the shortcut registers, enable **Lock / click-through**.
    Use the game's borderless or windowed mode.
 

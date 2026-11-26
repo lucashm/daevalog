@@ -13,6 +13,9 @@
   party DPS over the fight in saved fights, and Analytics (runs by player, class,
   boss or run, with a date range, filters, trends and best runs)
 - Two more native Windows widgets, PvP and Kina/s; saved layouts gain them
+- A Windows installer next to the portable ZIP: per-user (no administrator
+  prompt), Start menu entry, uninstaller, WebView2 when missing, and a pointer to
+  Npcap's download page when it isn't installed
 - Preserve existing capture formats and add opt-in Windows replay keep-open for
   companion history inspection; Linux and default replay EOF behavior remain.
 - Native Windows x64 Daevalog desktop app with shared capture/parser/DPS engine,

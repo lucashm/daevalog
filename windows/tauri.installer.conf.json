@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "lucashm",
+    "homepage": "https://github.com/lucashm/daevalog",
+    "copyright": "Copyright (C) 2026 lucashm. GPL-3.0-only.",
+    "shortDescription": "AION 2 companion: damage meter, pets, PvP and alerts",
+    "category": "Utility",
+    "licenseFile": "../LICENSE",
+    "icon": ["icons/icon.ico", "../desktop/aion2-meter-elyos.png"],
+    "externalBin": ["binaries/aion2-meterd"],
+    "resources": {
+      "../third_party/a2tools/src/data/i18n/skills/": "data/i18n/skills/",
+      "../third_party/a2tools/src/data/i18n/npcs/": "data/i18n/npcs/",
+      "../third_party/a2tools/src/data/dot_skill_ids.json": "data/dot_skill_ids.json",
+      "../third_party/a2tools/src/data/skill_icons.json": "data/skill_icons.json",
+      "../third_party/a2tools/src/data/abnormals.json": "data/abnormals.json",
+      "../third_party/a2tools/src/data/servers.json": "data/servers.json",
+      "../docs/windows.md": "WINDOWS.md",
+      "fonts/OFL.txt": "licenses/NotoSansCJK-OFL.txt"
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "installer/hooks.nsh",
+        "startMenuFolder": "Daevalog"
+      }
+    }
+  }
+}
