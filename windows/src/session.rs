@@ -35,7 +35,23 @@ pub struct Snapshot {
     pub overlay_passthrough: bool,
     pub overlay_windows: usize,
     pub data_dir: String,
+    /// The page the app was last told to show (`{ page, seq }`), e.g. by Ctrl+` in game.
+    pub nav: Value,
 }
+
+/// The companion's pages (windows/ui/src/App.tsx).
+const PAGES: [&str; 10] = [
+    "home",
+    "combat",
+    "pvp",
+    "pets",
+    "overlays",
+    "characters",
+    "history",
+    "analytics",
+    "alerts",
+    "settings",
+];
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +83,7 @@ impl Default for Snapshot {
             overlay_passthrough: false,
             overlay_windows: 0,
             data_dir: backend::data_dir().display().to_string(),
+            nav: Value::Null,
         }
     }
 }
@@ -103,6 +120,7 @@ pub enum Action {
     RefreshAdapters {},
     LockOverlay { locked: bool },
     TestAlert {},
+    Navigate { page: String },
 }
 
 enum Request {
@@ -266,6 +284,14 @@ impl Actor {
             }
             Action::TestAlert {} => {
                 self.notice("Test reminder · Shugo Festival starts in 3 minutes".into())
+            }
+            Action::Navigate { page } => {
+                if !PAGES.contains(&page.as_str()) {
+                    return Err("Unknown page".into());
+                }
+                // A new seq each time, so pressing it again on the same page still counts.
+                let seq = self.snapshot.nav["seq"].as_u64().unwrap_or(0) + 1;
+                self.snapshot.nav = json!({"page":page,"seq":seq});
             }
         }
         Ok(())
@@ -578,6 +604,22 @@ mod tests {
         actor.snapshot.clear_live_state();
         assert!(actor.snapshot.pvp.is_empty());
         assert_eq!(actor.snapshot.characters["playing"], "Naicha");
+    }
+    #[test]
+    fn navigate_names_a_known_page_with_a_fresh_seq() {
+        let mut actor = Actor {
+            cache: Arc::new(Mutex::new(Snapshot::default())),
+            snapshot: Snapshot::default(),
+            backend: None,
+            overlay: None,
+            reminders: [0; 2],
+        };
+        let go = |page: &str| Action::Navigate { page: page.into() };
+        actor.action(go("overlays")).unwrap();
+        actor.action(go("overlays")).unwrap();
+        assert_eq!(actor.snapshot.nav, json!({"page":"overlays","seq":2}));
+        assert!(actor.action(go("../etc")).is_err());
+        assert_eq!(actor.snapshot.nav["seq"], 2);
     }
     #[test]
     fn an_unchanged_snapshot_is_not_copied_again() {

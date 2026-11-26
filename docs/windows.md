@@ -88,6 +88,11 @@ Closing the companion **hides it to the system tray**. Capture and overlays
 continue; choose **Quit Daevalog** from the tray or Settings to save and stop.
 The tray can reopen the companion, toggle overlays and unlock input.
 
+**While AION 2 is the window in front**, as on Linux: **Ctrl+`** shows the
+widgets unlocked (drag them) and opens Overlay studio, and **Alt+`** hides or
+shows them. ` is the key under Esc, whatever your layout prints on it. In any
+other app these keys stay free. The tray has the same two actions.
+
 **Ctrl+Alt+M** toggles overlay click-through. It starts unlocked every launch
 and is refused until the global shortcut registers. When another application
 owns the shortcut, the app reports the conflict and keeps the widgets interactive.

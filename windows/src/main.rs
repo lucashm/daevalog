@@ -9,6 +9,8 @@ mod companion;
 #[cfg(windows)]
 mod fonts;
 #[cfg(windows)]
+mod game_keys;
+#[cfg(windows)]
 mod model;
 #[cfg(windows)]
 mod overlay_host;

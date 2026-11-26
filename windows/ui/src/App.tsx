@@ -71,6 +71,8 @@ export default function App() {
   const [query, setQuery] = useState('');
   const go = (next: Page) => { setPage(next); const url = new URL(location.href); url.searchParams.set('page', next); history.replaceState(null, '', url); };
   const { snapshot: s, preferences: p, error } = companion;
+  // The app was told to show a page (Ctrl+` in game opens Overlay studio).
+  useEffect(() => { if (s.nav && pages.some(x => x.id === s.nav!.page)) go(s.nav.page as Page); }, [s.nav?.seq]);
   const status = connection(s.state, s.running, s.replay, s.replayComplete);
   const openSearch = () => { setQuery(''); search.current?.showModal(); search.current?.querySelector('input')?.focus(); };
   useEffect(() => {
@@ -378,7 +380,7 @@ function OverlayPage() {
     </div><aside className="card overlay-settings"><div className="card-head"><h2>On this layout</h2><Layers size={14} /></div>{p.widgets.map(w => <div className="setting-row" key={w.id}><span>{widgetInfo[w.id].label}</span><Switch label={widgetInfo[w.id].label} on={w.enabled} change={enabled => saveWidget({ ...w, enabled })} /></div>)}
       <div className="range-row">Opacity<div className="row"><input aria-label="Overlay opacity" type="range" min="30" max="100" value={opacity} onChange={e => setOpacity(Number(e.target.value))} onPointerUp={() => { updatePreferences({ opacity }); setOpacity(null); }} onKeyUp={() => { updatePreferences({ opacity }); setOpacity(null); }} /><output>{opacity}%</output></div></div>
       <div className="range-row">Widget scale<div className="row"><input aria-label="Widget scale" type="range" min="75" max="150" step="5" value={scale} onChange={e => setScale(Number(e.target.value))} onPointerUp={() => { updatePreferences({ scale }); setScale(null); }} onKeyUp={() => { updatePreferences({ scale }); setScale(null); }} /><output>{scale}%</output></div></div>
-      <p className="inline-note"><kbd className="kbd">Ctrl+Alt+M</kbd> unlocks click-through. {p.overlayVisible && !s.overlayHotkey ? 'Waiting for the overlay shortcut to register.' : 'Click-through starts unlocked every launch.'}</p>
+      <p className="inline-note">In game: <kbd className="kbd">Ctrl+`</kbd> opens this studio with the widgets unlocked, <kbd className="kbd">Alt+`</kbd> hides or shows them (` is the key under Esc). <kbd className="kbd">Ctrl+Alt+M</kbd> unlocks click-through. {p.overlayVisible && !s.overlayHotkey ? 'Waiting for the overlay shortcut to register.' : 'Click-through starts unlocked every launch.'}</p>
     </aside></div><p className="inline-note">Use borderless or windowed game mode. Drag native widget headers while unlocked; use this studio to save anchors on the main display.</p>
   </>;
 }

@@ -1,4 +1,31 @@
+use crate::game_keys::{self, GameKey};
 use crate::session::{Action, Session, Snapshot};
+
+/// Alt+` or the tray: hide or show the native widgets.
+fn toggle_overlays(session: &Session) {
+    let mut preferences = session.snapshot().preferences;
+    preferences.overlay_visible = !preferences.overlay_visible;
+    let _ = session.act(Action::Preferences { preferences });
+}
+
+/// Ctrl+`: the widgets on screen and draggable, and the app open on Overlay studio.
+fn customize(app: &tauri::AppHandle) {
+    let session = app.state::<Session>();
+    let mut preferences = session.snapshot().preferences;
+    if !preferences.overlay_visible {
+        preferences.overlay_visible = true;
+        let _ = session.act(Action::Preferences { preferences });
+    }
+    let _ = session.act(Action::LockOverlay { locked: false });
+    let _ = session.act(Action::Navigate {
+        page: "overlays".into(),
+    });
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
 use tauri::{
     Manager,
     menu::{Menu, MenuItem},
@@ -96,11 +123,19 @@ pub fn run() -> tauri::Result<()> {
             };
             window.build()?;
             let show = MenuItem::with_id(app, "show", "Open Daevalog", true, None::<&str>)?;
+            let customize_item =
+                MenuItem::with_id(app, "customize", "Customize overlays (Ctrl+`)", true, None::<&str>)?;
             let hide =
-                MenuItem::with_id(app, "overlays", "Show / hide overlays", true, None::<&str>)?;
+                MenuItem::with_id(app, "overlays", "Show / hide overlays (Alt+`)", true, None::<&str>)?;
             let unlock = MenuItem::with_id(app, "unlock", "Unlock overlays", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Daevalog", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &hide, &unlock, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &customize_item, &hide, &unlock, &quit])?;
+            // In game only: the keys are free in other apps.
+            let handle = app.handle().clone();
+            game_keys::spawn(move |key| match key {
+                GameKey::ToggleOverlays => toggle_overlays(&handle.state::<Session>()),
+                GameKey::Customize => customize(&handle),
+            });
             let icon = tauri::image::Image::from_bytes(include_bytes!(
                 "../../desktop/aion2-meter-elyos.png"
             ))?;
@@ -117,18 +152,18 @@ pub fn run() -> tauri::Result<()> {
                         }
                     }
                     "quit" => app.exit(0),
-                    id @ ("overlays" | "unlock") => {
+                    id @ ("overlays" | "unlock" | "customize") => {
                         let app = app.clone();
-                        let unlock = id == "unlock";
-                        std::thread::spawn(move || {
-                            let session = app.state::<Session>();
-                            if unlock {
-                                let _ = session.act(Action::LockOverlay { locked: false });
-                            } else {
-                                let mut preferences = session.snapshot().preferences;
-                                preferences.overlay_visible = !preferences.overlay_visible;
-                                let _ = session.act(Action::Preferences { preferences });
+                        let id = id.to_string();
+                        // Off the event loop: session actions wait for the actor.
+                        std::thread::spawn(move || match id.as_str() {
+                            "unlock" => {
+                                let _ = app
+                                    .state::<Session>()
+                                    .act(Action::LockOverlay { locked: false });
                             }
+                            "customize" => customize(&app),
+                            _ => toggle_overlays(&app.state::<Session>()),
                         });
                     }
                     _ => {}

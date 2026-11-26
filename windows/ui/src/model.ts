@@ -50,6 +50,8 @@ export interface Snapshot {
   adapters: { name: string; description: string | null; addresses: string[] }[];
   preferences: Preferences; error: string | null; notice: { text: string; expires: number } | null;
   overlayLocked: boolean; overlayHotkey: boolean; overlayPassthrough: boolean; overlayWindows: number; dataDir: string;
+  /** The page the app was last told to show, e.g. by Ctrl+` in game; seq rises each time. */
+  nav: { page: string; seq: number } | null;
 }
 /** Every native widget at its default spot; windows/src/preferences.rs has the same list. */
 export const defaultWidgets: Widget[] = [{ id: 'meter', enabled: true, x: .02, y: .35 }, { id: 'boss', enabled: true, x: .35, y: .05 },
@@ -64,7 +66,7 @@ export const emptySnapshot: Snapshot = {
   revision: 0, running: false, replay: false, replayComplete: false, state: {}, pets: null,
   characters: null, pvp: [], kina: emptyKina, fights: [], fight: null,
   adapters: [], preferences: defaultPreferences, error: null, notice: null,
-  overlayLocked: false, overlayHotkey: false, overlayPassthrough: false, overlayWindows: 0, dataDir: '',
+  overlayLocked: false, overlayHotkey: false, overlayPassthrough: false, overlayWindows: 0, dataDir: '', nav: null,
 };
 export const number = (n: number | undefined | null) => {
   if (n == null || !Number.isFinite(n)) return '—';
