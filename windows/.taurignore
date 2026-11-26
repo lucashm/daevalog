@@ -1,0 +1,6 @@
+# What `tauri dev` doesn't rebuild the app for: Vite serves the UI live,
+# and the rest isn't compiled into it.
+ui/
+installer/
+prototype/
+testdata/

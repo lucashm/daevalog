@@ -151,6 +151,21 @@ See the [Npcap developer guide](https://npcap.com/guide/npcap-devguide.html) and
 Install Rust stable/MSVC, Visual Studio Build Tools with Desktop development
 with C++ and the Windows SDK, plus Node.js 24. Clone submodules recursively.
 
+Two shortcuts for working on it:
+
+~~~powershell
+./scripts/install-windows-local.ps1   # build this checkout (uncommitted edits too), install it, start it
+./scripts/dev-windows.ps1             # run from source: UI hot reload, app rebuilds on edit
+~~~
+
+`install-windows-local.ps1` builds the installer as `local-<commit>` (`-dirty`
+with uncommitted edits), closes a running Daevalog, installs over it for your
+user and starts it; your fights and settings stay. `dev-windows.ps1` runs until
+Ctrl+C: edits in `windows/ui` show at once, edits in `windows/src` rebuild and
+restart the app, and edits in `daemon/src` need the script started again.
+
+The full checks, as CI runs them:
+
 ~~~powershell
 npm --prefix windows/ui ci
 npm --prefix windows/ui run build
