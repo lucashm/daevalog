@@ -10,9 +10,12 @@ Obsidian's Questlog-like sidebar and companion pages.
 Each release has two Windows downloads: an installer
 (`aion2-meter-…-x86_64-windows-setup.exe`) and a portable ZIP. Pick one.
 
-1. Install **Npcap x64** from [npcap.com](https://npcap.com/#download), with
-   **WinPcap API-compatible Mode** enabled. Daevalog does not install or bundle it;
-   the installer offers to open its download page when it's missing.
+1. Daevalog needs **Npcap x64** with **WinPcap API-compatible Mode** enabled.
+   Npcap's license doesn't allow bundling it, so: the **installer** offers to
+   download the official Npcap installer from npcap.com when it's missing (checked
+   against a pinned SHA-256) and starts it; you go through Npcap's own setup,
+   which asks for administrator permission. For the **portable ZIP**, install it
+   yourself from [npcap.com](https://npcap.com/#download).
 2. **Installer:** run the setup and follow it. It installs for your user only (no
    administrator prompt), adds Daevalog to the Start menu, installs Microsoft's
    WebView2 Runtime if it is missing, and has an uninstaller in Windows Settings →
