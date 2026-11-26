@@ -776,7 +776,7 @@ PanelWindow {
                     font.bold: true
                 }
                 Text {
-                    text: "Boss fights on it are saved to history first. Other damage is lost."
+                    text: "Boss fights on it are saved to history first. Other damage is lost, and kina/s starts over with the next kina."
                     color: Theme.dim
                     font.pixelSize: Theme.fontSmall
                     font.family: Theme.fontFamily

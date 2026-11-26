@@ -19,7 +19,8 @@ Item {
     // In-game shortcuts, as Hyprland key combos ("CTRL + grave"); empty = none.
     readonly property string shortcutEdit: adapter.shortcutEdit
     readonly property string shortcutHide: adapter.shortcutHide
-    readonly property int maxRows: adapter.maxRows
+    // Raids are 10; old configs saved 8.
+    readonly property int maxRows: Math.max(10, adapter.maxRows)
     readonly property int skillRows: adapter.skillRows
     readonly property string gameMonitor: adapter.gameMonitor
     // A monitor picked in edit mode; empty = follow the game.
@@ -148,7 +149,7 @@ Item {
             // The key above Tab: by the left hand and unbound in the game (Alt+letters open its tabs).
             property string shortcutEdit: "CTRL + grave"
             property string shortcutHide: "ALT + grave"
-            property int maxRows: 8
+            property int maxRows: 10
             property int skillRows: 10
             // The monitor the game was last seen on.
             property string gameMonitor: ""

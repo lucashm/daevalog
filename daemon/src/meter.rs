@@ -30,6 +30,8 @@ pub struct PlayerRow {
     pub is_local: bool,
     /// From the party roster; 0 for players outside your party.
     pub combat_power: i64,
+    /// Times they went down this fight, as saved fights count them.
+    pub deaths: usize,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -90,6 +92,8 @@ pub struct Meter {
     details_target: i32,
     crit_by_actor: HashMap<i32, f64>,
     skills: Vec<SkillRow>,
+    /// The shown fight's first and last hit (ms), from the last details refresh.
+    fight: (i64, i64),
 }
 
 impl Meter {
@@ -104,6 +108,7 @@ impl Meter {
             details_target: 0,
             crit_by_actor: HashMap::new(),
             skills: Vec::new(),
+            fight: (0, 0),
         }
     }
 
@@ -126,6 +131,13 @@ impl Meter {
             self.refresh_details(&dps, skills_of, seconds);
         }
 
+        // A2Tools' window for a saved fight's deaths: its hits, plus 5s for a wipe.
+        // shortcut: counted under the id each death was logged with, not mapped like a saved fight's; if your own churn ids, a death can miss your row.
+        let deaths = if self.fight.0 > 0 {
+            self.storage.deaths_between(self.fight.0, self.fight.1 + 5_000)
+        } else {
+            Vec::new()
+        };
         let mut players: Vec<PlayerRow> = dps
             .map
             .iter()
@@ -144,11 +156,13 @@ impl Meter {
                 share: p.damage_contribution,
                 crit_rate: self.crit_by_actor.get(&id).copied().unwrap_or(0.0),
                 is_local: Some(id) == local,
-                // Yours as the game last stated it, which needs no party roster.
+                // The roster's, like everyone else's: the live one sinks under a boss's
+                // debuffs (193K read 148.5K on Judge Urahum, 2026-11-09). Solo, the live one.
                 combat_power: match crate::own_cp::get() {
-                    cp if cp > 0 && Some(id) == local => cp,
+                    cp if cp > 0 && p.combat_power == 0 && Some(id) == local => cp,
                     _ => p.combat_power,
                 },
+                deaths: deaths.iter().filter(|d| d.0 == id).count(),
             })
             .collect();
         players.sort_by(|a, b| b.damage.total_cmp(&a.damage).then(a.id.cmp(&b.id)));
@@ -172,7 +186,8 @@ impl Meter {
             players,
             skills_of,
             skills: self.skills.clone(),
-            faction: faction_of(self.storage.fight_server_id()),
+            // Filled in by the main loop, which knows your characters.
+            faction: None,
             character: self.storage.local_character_name(),
         }
     }
@@ -189,8 +204,16 @@ impl Meter {
         let summons = self.storage.get_summon_data();
         let mut hits: HashMap<i32, (i64, i64)> = HashMap::new();
         let mut skills: HashMap<(i32, bool), SkillRow> = HashMap::new();
+        self.fight = (0, 0);
         for &t in &targets {
             let details = self.calc.get_hover_details(t, None);
+            if details.start_time > 0 {
+                let end = details.start_time + details.battle_time;
+                self.fight = match self.fight {
+                    (0, _) => (details.start_time, end),
+                    (s, e) => (s.min(details.start_time), e.max(end)),
+                };
+            }
             for s in &details.skills {
                 let owner = summon_resolver::resolve(s.actor_id, &summons);
                 if !s.is_dot {
@@ -289,5 +312,45 @@ mod tests {
         assert_eq!(faction_of(1304), Some("elyos"));
         assert_eq!(faction_of(2014), Some("asmodian"));
         assert_eq!(faction_of(0), None);
+    }
+
+    #[test]
+    fn a_row_counts_its_deaths_in_this_fight_only() {
+        use std::sync::Arc;
+
+        use a2tools::clock::set_override;
+        use a2tools::combat::data_storage::DataStorage;
+        use a2tools::combat::dps_calculator::DpsCalculator;
+        use a2tools::combat::ping_tracker::PingTracker;
+        use a2tools::i18n::lookup::{NpcLookup, SkillLookup};
+        use a2tools::entity::damage_packet::ParsedDamagePacket;
+
+        let hit = |actor, at| {
+            let mut p = ParsedDamagePacket::new();
+            p.set_actor_id(actor);
+            p.set_target_id(50_000);
+            p.set_skill_code(11010000);
+            p.set_damage(500);
+            p.set_timestamp(at);
+            p
+        };
+        let storage = Arc::new(DataStorage::new());
+        storage.append_nickname(2259, "Naicha");
+        storage.append_nickname(2260, "Faffy");
+        storage.append_damage(hit(2259, 1_000));
+        storage.append_damage(hit(2260, 9_000));
+        for (at, id, hp) in [(2_000, 2259, 5_000), (2_000, 2260, 5_000), (4_000, 2259, 0), (6_000, 2259, 2_500), (12_000, 2259, 0), (30_000, 2260, 0)] {
+            set_override(Some(at));
+            storage.note_hp(id, hp);
+        }
+        set_override(None);
+        let ping = Arc::new(PingTracker::new());
+        let mut calc = DpsCalculator::new(storage.clone(), Arc::new(SkillLookup::new()), Arc::new(NpcLookup::new()), ping.clone());
+        storage.set_local_player_id(Some(2259));
+        calc.set_target_selection_mode("lastHitByMe");
+        let state = super::Meter::new(calc, storage, ping).state(Default::default());
+        let deaths: Vec<_> = state.players.iter().map(|p| (p.id, p.deaths)).collect();
+        // Naicha: down at 4s and again within 5s of the last hit (a wipe); Faffy's is long after.
+        assert_eq!(deaths, vec![(2259, 2), (2260, 0)]);
     }
 }

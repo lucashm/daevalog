@@ -217,6 +217,33 @@
       "Sulfur Tree Island - River of Rotten Sap",
       "Sulfur Tree Island - Sulfur Swamp"
      ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 627,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 575,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 575,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 45,
+     "npc": "Abyss Mutated Klaw",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 30,
+     "zones": [
+      "Red Thorn Crown Isle"
+     ]
     }
    ],
    "genus": "cogni",
@@ -861,6 +888,141 @@
       "Sulfur Tree Island - Branding Island",
       "Sulfur Tree Island - River of Rotten Sap",
       "Sulfur Tree Island - Sulfur Swamp"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 540,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 982,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 540,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 45,
+     "npc": "Abyss Swarm",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 63,
+     "zones": [
+      "La Miren Fortress Northern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 990,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 542,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 542,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 45,
+     "npc": "Abyss Swarm",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 63,
+     "zones": [
+      "La Miren Fortress Southern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 925,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 506,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 506,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 45,
+     "npc": "Abyss Swarm",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 63,
+     "zones": [
+      "Fractured Southern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 513,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 925,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 513,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 45,
+     "npc": "Abyss Swarm",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 63,
+     "zones": [
+      "Fractured Northern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 682,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 528,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 528,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 43,
+     "npc": "Abyss Swarm",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 84,
+     "zones": [
+      "Red Thorn Crown Isle"
      ]
     }
    ],
@@ -1688,6 +1850,114 @@
       "Black Fragments Area - Kration Conflict Zone",
       "Black Fragments Area - Abandoned Island"
      ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 501,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 981,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 501,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Klaw",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 28,
+     "zones": [
+      "La Miren Fortress Northern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 991,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 502,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 502,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Klaw",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 28,
+     "zones": [
+      "La Miren Fortress Southern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 979,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 484,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 484,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Klaw",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 28,
+     "zones": [
+      "Fractured Southern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 491,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 979,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 491,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Klaw",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 28,
+     "zones": [
+      "Fractured Northern Crash Site"
+     ]
     }
    ],
    "genus": "cogni",
@@ -1754,6 +2024,33 @@
      "spawns": 5,
      "zones": [
       "Sulfur Tree Island - River of Rotten Sap"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 693,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 537,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 537,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 47,
+     "npc": "Unavarun Nagarant Praetorian",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 12,
+     "zones": [
+      "Red Thorn Crown Isle"
      ]
     }
    ],
@@ -3495,6 +3792,33 @@
       "Sulfur Tree Island - River of Rotten Sap",
       "Sulfur Tree Island - Sulfur Swamp"
      ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 672,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 538,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 538,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 43,
+     "npc": "Abyss Drana Slime",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 44,
+     "zones": [
+      "Red Thorn Crown Isle"
+     ]
     }
    ],
    "genus": "varian",
@@ -4630,6 +4954,33 @@
       "Sulfur Tree Island - River of Rotten Sap",
       "Sulfur Tree Island - Branding Island"
      ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 521,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 682,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 521,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 44,
+     "npc": "Abyss Drana Skama",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 18,
+     "zones": [
+      "Red Thorn Crown Isle"
+     ]
     }
    ],
    "genus": "fera",
@@ -5224,6 +5575,330 @@
       "Black Fragments Area - Kration Conflict Zone",
       "Black Fragments Area - Kibelium Fragment",
       "Black Fragments Area - Abandoned Island"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 528,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 1001,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 528,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Chandala Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 22,
+     "zones": [
+      "La Miren Fortress Northern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 445,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 1114,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 445,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Chandala Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 12,
+     "zones": [
+      "La Miren Fortress Northern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 384,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 939,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 384,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Chandala Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 8,
+     "zones": [
+      "La Miren Fortress Northern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 1011,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 529,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 529,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Chandala Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 22,
+     "zones": [
+      "La Miren Fortress Southern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 1121,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 450,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 450,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Chandala Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 12,
+     "zones": [
+      "La Miren Fortress Southern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 949,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 382,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 382,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Chandala Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 8,
+     "zones": [
+      "La Miren Fortress Southern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 971,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 495,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 495,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Makarah Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 22,
+     "zones": [
+      "Fractured Southern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 970,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 391,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 391,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Makarah Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 12,
+     "zones": [
+      "Fractured Southern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 1046,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 362,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 362,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Makarah Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 8,
+     "zones": [
+      "Fractured Southern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 502,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 971,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 502,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Makarah Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 22,
+     "zones": [
+      "Fractured Northern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 398,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 969,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 398,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Makarah Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 12,
+     "zones": [
+      "Fractured Northern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 369,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 1045,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 369,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Makarah Krall Karnif",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 8,
+     "zones": [
+      "Fractured Northern Crash Site"
      ]
     }
    ],
@@ -7070,6 +7745,33 @@
       "Ellun River Marsh",
       "Contaminated Marsh"
      ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 641,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 575,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "100%",
+     "kibelisk": {
+      "m": 575,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 45,
+     "npc": "Abyss Drana Mutant",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 39,
+     "zones": [
+      "Red Thorn Crown Isle"
+     ]
     }
    ],
    "genus": "varian",
@@ -7380,6 +8082,33 @@
      "spawns": 7,
      "zones": [
       "Fafnite Deposit"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 529,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 675,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 529,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Drana Giant Mutant",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 26,
+     "zones": [
+      "Red Thorn Crown Isle"
      ]
     }
    ],
@@ -8357,6 +9086,33 @@
      "zones": [
       "Fafnite Deposit"
      ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 571,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 632,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 571,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Drana Mutant",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 61,
+     "zones": [
+      "Red Thorn Crown Isle"
+     ]
     }
    ],
    "genus": "varian",
@@ -8868,6 +9624,222 @@
      "zones": [
       "Black Fragments Area - Kibelium Fragment",
       "Black Fragments Area - Lonely Island"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 677,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 949,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 677,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "La Miren Fortress Northern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 449,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 1074,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 449,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "La Miren Fortress Northern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 959,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 678,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 678,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "La Miren Fortress Southern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 1083,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 452,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 452,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "La Miren Fortress Southern Remnants"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 828,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 655,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 655,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "Fractured Southern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 961,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 365,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 365,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "Fractured Southern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 661,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 829,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 661,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "Fractured Northern Crash Site"
+     ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 371,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 960,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 371,
+      "name": "Krotan Fortress",
+      "teleport": 1
+     },
+     "level": 46,
+     "npc": "Abyss Rusty Rotan",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 10,
+     "zones": [
+      "Fractured Northern Crash Site"
      ]
     }
    ],
@@ -9571,6 +10543,33 @@
       "Sulfur Tree Island - Sulfur Swamp",
       "Sulfur Tree Island - River of Rotten Sap"
      ]
+    },
+    {
+     "bySide": {
+      "asmodian": {
+       "m": 660,
+       "name": "Krotan Fortress",
+       "teleport": 1
+      },
+      "elyos": {
+       "m": 555,
+       "name": "Dukysas Fortress",
+       "teleport": 1
+      }
+     },
+     "chance": "",
+     "kibelisk": {
+      "m": 555,
+      "name": "Dukysas Fortress",
+      "teleport": 1
+     },
+     "level": 45,
+     "npc": "Abyss Drana Greedwillow",
+     "region": "Chaotic Outer Reshanta",
+     "spawns": 23,
+     "zones": [
+      "Red Thorn Crown Isle"
+     ]
     }
    ],
    "genus": "natura",
@@ -9984,5 +10983,5 @@
    "unreleased": false
   }
  },
- "source": "A2Tools Pet Soul Tracker 0.4.3 (GPL-3.0), https://github.com/taengu/A2Tools-Plugins/tree/main/plugins/pet-souls"
+ "source": "A2Tools Pet Soul Tracker 0.8.4 (GPL-3.0), https://github.com/taengu/A2Tools-Plugins/tree/main/plugins/pet-souls"
 }

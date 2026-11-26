@@ -59,6 +59,49 @@ OverlayWidget {
             }
         }
 
+        // Party total, the headline number: DPS big, damage and deaths beside it.
+        Item {
+            visible: meter.rows.length > 0
+            width: meter.width_ - Theme.pad * 2
+            height: Math.round(30 * Theme.scale)
+            Text {
+                id: partyDps
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: meter.settings.meterMetric === "damage"
+                      ? Theme.compact(meter.client.totalDamage)
+                      : Theme.compact(meter.client.totalDps) + "/s"
+                color: Theme.text
+                font.pixelSize: Math.round(24 * Theme.scale)
+                font.family: Theme.fontFamily
+                font.bold: true
+                font.features: { "tnum": 1 }
+            }
+            Text {
+                anchors.left: partyDps.right
+                anchors.leftMargin: Theme.pad
+                anchors.baseline: partyDps.baseline
+                text: "party " + (meter.settings.meterMetric === "damage" ? "damage" : "DPS")
+                color: Theme.faint
+                font.pixelSize: Theme.fontSmall
+                font.family: Theme.fontFamily
+            }
+            Text {
+                anchors.right: parent.right
+                anchors.baseline: partyDps.baseline
+                text: {
+                    const n = meter.client.totalDeaths;
+                    const deaths = n + (n === 1 ? " death" : " deaths");
+                    return meter.settings.meterMetric === "damage" ? deaths
+                         : deaths + "   " + Theme.compact(meter.client.totalDamage) + " total";
+                }
+                color: Theme.dim
+                font.pixelSize: Theme.fontSmall
+                font.family: Theme.fontFamily
+                font.features: { "tnum": 1 }
+            }
+        }
+
         MeterHeader {
             metric: meter.settings.meterMetric
             visible: meter.rows.length > 0
@@ -106,35 +149,6 @@ OverlayWidget {
                 color: Theme.faint
                 font.pixelSize: Theme.fontSmall
                 font.family: Theme.fontFamily
-            }
-        }
-
-        // Footer: party total
-        Item {
-            visible: meter.rows.length > 0
-            width: meter.width_ - Theme.pad * 2
-            height: Math.round(16 * Theme.scale)
-            Text {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Total"
-                color: Theme.faint
-                font.pixelSize: Theme.fontSmall
-                font.family: Theme.fontFamily
-            }
-            Text {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                text: {
-                    const m = meter.settings.meterMetric;
-                    const dmg = Theme.compact(meter.client.totalDamage) + " total";
-                    const dps = Theme.compact(meter.client.totalDps) + "/s";
-                    return m === "damage" ? dmg : m === "dps" ? dps : dmg + "   " + dps;
-                }
-                color: Theme.dim
-                font.pixelSize: Theme.fontSmall
-                font.family: Theme.fontFamily
-                font.features: { "tnum": 1 }
             }
         }
     }

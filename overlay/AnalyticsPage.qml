@@ -14,17 +14,140 @@ Item {
     property string group: "player"
     property string sortKey: "avgDps"
     property bool sortDesc: true
-    // 0 = all time, else the last this many days.
-    property int periodDays: 0
+    // Runs that started in this span; 0 = an open end. The preset's name when one was picked.
+    property real rangeFrom: 0
+    property real rangeTo: 0
+    property string rangePreset: ""
+    property bool pickerOpen: false
+    // Runs shorter than this many minutes are hidden; 0 = none.
+    property int minMinutes: 0
     property bool killsOnly: false
     property bool meOnly: false
     // Group name -> the value runs must have there ({ boss: "Vakron" }).
     property var filters: ({})
     property string selectedKey: ""
-    // The sparkline bar under the pointer, or null.
-    property var hoverRun: null
 
     signal openFight(string id)
+
+    component FilterText: Text {
+        anchors.verticalCenter: parent.verticalCenter
+        color: Theme.dim
+        font.pixelSize: Theme.fontSmall
+        font.family: Theme.fontFamily
+    }
+    // The range button's words: a preset's name, a day, or from–to.
+    function rangeLabel(from, to, preset) {
+        if (preset) return preset;
+        if (!from && !to) return "All time";
+        const f = (ms, fm) => new Date(ms).toLocaleString(Qt.locale(), fm);
+        const day = ms => new Date(ms).toDateString();
+        const midnight = ms => f(ms, "HH:mm") === "00:00";
+        if (from && to && day(from) === day(to) && midnight(from) && f(to, "HH:mm") === "23:59") return f(from, "ddd d MMM");
+        const at = ms => midnight(ms) ? f(ms, "d MMM") : f(ms, "d MMM HH:mm");
+        if (!to) return "Since " + at(from);
+        if (!from) return "Until " + f(to, "d MMM HH:mm");
+        return at(from) + "  –  " + (f(to, "HH:mm") === "23:59" ? f(to, "d MMM") : f(to, "d MMM HH:mm"));
+    }
+
+    // Opens the date range picker; shows what's picked.
+    component RangeButton: Rectangle {
+        id: rb
+        readonly property bool set: an.rangeFrom > 0 || an.rangeTo > 0
+        anchors.verticalCenter: parent.verticalCenter
+        implicitWidth: rbRow.implicitWidth + Theme.pad * 2
+        implicitHeight: rbText.implicitHeight + Theme.pad
+        radius: height / 2
+        color: an.pickerOpen ? Qt.alpha(Theme.accent, 0.18) : rbArea.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.07)
+        border.color: set || an.pickerOpen ? Theme.accent : Theme.panelEdge
+        Row {
+            id: rbRow
+            anchors.centerIn: parent
+            spacing: Math.round(6 * Theme.scale)
+            // A little calendar.
+            Item {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.round(11 * Theme.scale)
+                height: width
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.topMargin: Math.round(1 * Theme.scale)
+                    radius: Math.round(2 * Theme.scale)
+                    color: "transparent"
+                    border.width: Math.max(1, Math.round(1.2 * Theme.scale))
+                    border.color: rb.set ? Theme.accent : Theme.dim
+                }
+                Rectangle {
+                    y: Math.round(1 * Theme.scale)
+                    width: parent.width
+                    height: Math.round(3.5 * Theme.scale)
+                    radius: Math.round(1.5 * Theme.scale)
+                    color: rb.set ? Theme.accent : Theme.dim
+                }
+            }
+            Text {
+                id: rbText
+                anchors.verticalCenter: parent.verticalCenter
+                text: an.rangeLabel(an.rangeFrom, an.rangeTo, an.rangePreset)
+                color: rb.set ? Theme.accent : Theme.text
+                font.pixelSize: Theme.fontSmall
+                font.family: Theme.fontFamily
+                font.features: { "tnum": 1 }
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: an.pickerOpen ? "▴" : "▾"
+                color: Theme.dim
+                font.pixelSize: Theme.fontSmall
+            }
+        }
+        MouseArea {
+            id: rbArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                const p = rb.mapToItem(an, rb.width, rb.height);
+                picker.x = Math.max(0, p.x - picker.width);
+                picker.y = p.y + Math.round(6 * Theme.scale);
+                picker.reset();
+                an.pickerOpen = true;
+            }
+        }
+    }
+
+    // A whole number typed in; empty means 0.
+    component NumField: Rectangle {
+        id: nf
+        property int value
+        property string placeholder
+        signal edited(int v)
+        anchors.verticalCenter: parent.verticalCenter
+        width: Math.round(40 * Theme.scale)
+        height: input.implicitHeight + Theme.pad
+        radius: height / 2
+        color: Qt.rgba(1, 1, 1, 0.07)
+        border.color: input.activeFocus ? Theme.accent : Theme.panelEdge
+        TextInput {
+            id: input
+            anchors.fill: parent
+            horizontalAlignment: TextInput.AlignHCenter
+            verticalAlignment: TextInput.AlignVCenter
+            text: nf.value ? String(nf.value) : ""
+            validator: IntValidator { bottom: 0; top: 9999 }
+            color: Theme.text
+            font.pixelSize: Theme.fontSmall
+            font.family: Theme.fontFamily
+            selectByMouse: true
+            onTextEdited: nf.edited(parseInt(text) || 0)
+            Text {
+                visible: !input.text
+                anchors.centerIn: parent
+                text: nf.placeholder
+                color: Theme.dim
+                font: input.font
+            }
+        }
+    }
 
     // Every name you've played, so "Me" works with the game closed.
     readonly property string localName: {
@@ -47,8 +170,8 @@ Item {
                     player: p.name, job: p.job, jobKey: p.jobKey, isMe: mine.includes(p.name),
                     dps: p.dps, damage: p.damage, share: f.totalDamage > 0 ? p.damage / f.totalDamage : 0,
                     // Missing from a daemon older than the overlay.
-                    critRate: p.critRate || 0, backRate: p.backRate || 0,
-                    healPs: (p.heal || 0) / seconds, takenPs: (p.damageTaken || 0) / seconds, deaths: p.deaths || 0,
+                    critRate: p.critRate || 0, backRate: p.backRate || 0, active: p.active || 0,
+                    healPs: (p.heal || 0) / seconds, takenPs: (p.damageTaken || 0) / seconds, deaths: p.deaths || 0, deathMs: p.deathMs || [], damageBins: p.damageBins || [],
                     gearScore: p.gearScore || 0, combatPower: p.combatPower || 0
                 });
             }
@@ -57,9 +180,10 @@ Item {
     }
 
     readonly property var filtered: {
-        const since = periodDays ? Date.now() - periodDays * 86400000 : 0;
+        const from = rangeFrom, to = rangeTo || Infinity;
+        const minMs = minMinutes * 60000;
         const f = filters;
-        return runs.filter(r => r.start >= since && (!killsOnly || r.killed) && (!meOnly || r.isMe)
+        return runs.filter(r => r.start >= from && r.start <= to && r.durationMs >= minMs && (!killsOnly || r.killed) && (!meOnly || r.isMe)
             && Object.keys(f).every(k => keyOf(r, k) === f[k]));
     }
 
@@ -70,19 +194,23 @@ Item {
             const k = keyOf(r, g);
             (byKey[k] = byKey[k] || []).push(r);
         }
-        const avg = (rs, f) => rs.reduce((t, r) => t + f(r), 0) / rs.length;
+        const sum = (rs, f) => rs.reduce((t, r) => t + f(r), 0);
+        const avg = (rs, f) => sum(rs, f) / rs.length;
+        // A run is the whole party: its amounts add up, its rates average.
+        const add = g === "run" ? sum : avg;
         const out = Object.keys(byKey).map(key => {
             const rs = byKey[key];
             const last = rs[rs.length - 1];
-            const avgDps = avg(rs, r => r.dps);
+            const avgDps = add(rs, r => r.dps);
             return {
                 key: key, runs: rs, count: rs.length,
-                label: g === "player" ? last.player : g === "job" ? last.job : g === "boss" ? last.boss : last.boss + "  ·  " + last.player,
-                job: last.job, jobKey: g === "boss" ? "" : last.jobKey, isMe: (g === "player" || g === "run") && last.isMe,
+                label: g === "player" ? last.player : g === "job" ? last.job : last.boss,
+                job: last.job, jobKey: g === "boss" || g === "run" ? "" : last.jobKey,
+                isMe: g === "player" ? last.isMe : g === "run" && rs.some(r => r.isMe),
                 start: last.start, durationMs: last.durationMs, killed: last.killed,
                 avgDps: avgDps, bestDps: Math.max(...rs.map(r => r.dps)),
-                share: avg(rs, r => r.share), critRate: avg(rs, r => r.critRate), backRate: avg(rs, r => r.backRate),
-                healPs: avg(rs, r => r.healPs), takenPs: avg(rs, r => r.takenPs), deaths: avg(rs, r => r.deaths),
+                share: add(rs, r => r.share), critRate: avg(rs, r => r.critRate), backRate: avg(rs, r => r.backRate), active: avg(rs, r => r.active),
+                healPs: add(rs, r => r.healPs), takenPs: add(rs, r => r.takenPs), deaths: add(rs, r => r.deaths),
                 killRate: avg(rs, r => r.killed ? 1 : 0),
                 // The last 5 runs against all of them.
                 trend: rs.length >= 6 ? avg(rs.slice(-5), r => r.dps) / Math.max(1, avgDps) - 1 : NaN
@@ -104,14 +232,16 @@ Item {
         { key: "share", title: "Share", fmt: v => Theme.percent(v, 0) },
         { key: "critRate", title: "Crit", fmt: v => Theme.percent(v, 0) },
         { key: "backRate", title: "Back", fmt: v => Theme.percent(v, 0) },
+        { key: "active", title: "Active", fmt: v => Theme.percent(v, 0) },
         { key: "healPs", title: "Heal/s", fmt: v => v > 0 ? Theme.compact(v) : "–" },
         { key: "takenPs", title: "Taken/s", fmt: v => Theme.compact(v) }
     ]
     readonly property var columns: group === "run" ? [
         { key: "start", title: "Date", w: 1.7, fmt: v => new Date(v).toLocaleString(Qt.locale(), "d MMM HH:mm") },
         { key: "durationMs", title: "Time", fmt: v => Theme.duration(v) },
-        { key: "avgDps", title: "DPS", main: true, fmt: v => Theme.compact(v) }
-    ].concat(common, [
+        { key: "avgDps", title: "DPS", main: true, fmt: v => Theme.compact(v) },
+        { key: "count", title: "Players", fmt: v => String(v) }
+    ].concat(common.filter(c => c.key !== "share"), [
         { key: "deaths", title: "Deaths", fmt: v => v > 0 ? String(v) : "–" },
         { key: "killed", title: "Kill", fmt: v => v ? "✓" : "", color: () => Theme.good }
     ]) : [
@@ -130,9 +260,12 @@ Item {
 
     implicitHeight: card.implicitHeight
     readonly property int width_: Math.max(Math.round(900 * Theme.scale), width)
-    readonly property int paneW: Math.round(300 * Theme.scale)
+    readonly property int colsW: columns.reduce((t, c) => t + Math.round((c.w || 1) * colW), 0)
+    // The pane takes what the table doesn't need (names get 160px), up to 640.
+    readonly property int paneW: Math.max(Math.round(300 * Theme.scale),
+        Math.min(Math.round(640 * Theme.scale), width_ - Theme.pad * 3 - colsW - Math.round(160 * Theme.scale)))
     readonly property int tableW: width_ - Theme.pad * 3 - paneW
-    readonly property int labelW: Math.max(Math.round(80 * Theme.scale), tableW - columns.reduce((t, c) => t + Math.round((c.w || 1) * colW), 0))
+    readonly property int labelW: Math.max(Math.round(80 * Theme.scale), tableW - colsW)
 
     onOpenChanged: if (open) client.requestHistory()
     Connections {
@@ -143,11 +276,12 @@ Item {
     }
 
     function keyOf(r, g) {
-        return g === "player" ? r.player : g === "job" ? r.jobKey : g === "boss" ? r.boss : r.fightId + "/" + r.player;
+        return g === "player" ? r.player : g === "job" ? r.jobKey : g === "boss" ? r.boss : r.fightId;
     }
     function setGroup(g) {
         group = g;
-        sortKey = g === "run" ? "start" : "avgDps";
+        // Runs and bosses: the latest first.
+        sortKey = g === "run" || g === "boss" ? "start" : "avgDps";
         sortDesc = true;
         selectedKey = "";
     }
@@ -171,6 +305,54 @@ Item {
     }
     function date(ms) {
         return new Date(ms).toLocaleString(Qt.locale(), "d MMM");
+    }
+    // The pane's DPS chart, sliced like the death timeline: the row's damage in
+    // each slice over the time its fights lasted there, so a boss's slice is the
+    // party's average DPS then and a player's is theirs. The daemon bins per 30s.
+    function dpsView(s, group) {
+        if (!s) return null;
+        const spanMs = Math.max(1, ...s.runs.map(r => r.durationMs));
+        const binMs = spanMs <= 10 * 60000 ? 30000 : 60000;
+        const n = Math.ceil(spanMs / binMs);
+        const dmg = new Array(n).fill(0);
+        const fights = {};
+        for (const r of s.runs) {
+            r.damageBins.forEach((d, i) => dmg[Math.min(n - 1, Math.floor(i * 30000 / binMs))] += d);
+            fights[r.fightId] = r.durationMs;
+        }
+        // Fights saved by a daemon without the bins.
+        if (!dmg.some(d => d > 0)) return null;
+        const lasted = dmg.map((_, i) => Object.values(fights).reduce((t, ms) => t + Math.max(0, Math.min(binMs, ms - i * binMs)), 0));
+        const runs = Object.keys(fights).length;
+        const who = group !== "boss" ? "DPS" : meOnly ? "Your DPS" : "Party DPS";
+        return { spanMs: spanMs, binMs: binMs, runs: runs, bins: dmg.map((d, i) => lasted[i] ? d * 1000 / lasted[i] : 0),
+                 title: who + " over the fight" + (runs > 1 ? "  ·  average of " + runs + " runs" : "") };
+    }
+    // The pane's death timeline. A run: a lane for each player in that fight who
+    // died. A boss: deaths across its runs, counted per 30s (per 1 min past 10 min).
+    function deathView(s, group, history) {
+        if (!s || (group !== "run" && group !== "boss")) return null;
+        if (group === "run") {
+            const r = s.runs[0];
+            const f = history.find(f => f.id === r.fightId);
+            if (!f) return null;
+            const lanes = f.players.filter(p => (p.deathMs || []).length && !p.name.startsWith("#"))
+                .map(p => ({ label: p.name, jobKey: p.jobKey, bold: s.runs.some(x => x.isMe && x.player === p.name), ms: p.deathMs }));
+            const n = lanes.reduce((t, l) => t + l.ms.length, 0);
+            return { spanMs: f.durationMs, lanes: lanes, bins: [], binMs: 30000, runs: 1,
+                     title: n ? "Deaths in this run" : "No deaths in this run" };
+        }
+        const spanMs = Math.max(1, ...s.runs.map(r => r.durationMs));
+        const binMs = spanMs <= 10 * 60000 ? 30000 : 60000;
+        const bins = new Array(Math.ceil(spanMs / binMs)).fill(0);
+        let n = 0;
+        for (const r of s.runs) for (const ms of r.deathMs) {
+            bins[Math.min(bins.length - 1, Math.floor(ms / binMs))]++;
+            n++;
+        }
+        const runs = new Set(s.runs.map(r => r.fightId)).size;
+        return { spanMs: spanMs, lanes: [], bins: n ? bins : [], binMs: binMs, runs: runs,
+                 title: n ? "When deaths happen  ·  " + n + " in " + runs + (runs === 1 ? " run" : " runs") : "No deaths in these runs" };
     }
 
     Panel {
@@ -226,14 +408,39 @@ Item {
                         onClicked: an.setGroup(modelData)
                     }
                 }
+                Text {
+                    visible: an.group === "boss"
+                    anchors.verticalCenter: parent.verticalCenter
+                    leftPadding: Theme.pad
+                    text: "Sort"
+                    color: Theme.dim
+                    font.pixelSize: Theme.fontSmall
+                    font.family: Theme.fontFamily
+                }
+                Chip {
+                    visible: an.group === "boss"
+                    label: "Latest"
+                    checked: an.sortKey === "start" && an.sortDesc
+                    onClicked: { an.sortKey = "start"; an.sortDesc = true; }
+                }
+                Chip {
+                    visible: an.group === "boss"
+                    label: "A–Z"
+                    checked: an.sortKey === "label" && !an.sortDesc
+                    onClicked: { an.sortKey = "label"; an.sortDesc = false; }
+                }
             }
             Row {
                 anchors.right: parent.right
                 spacing: Math.round(4 * Theme.scale)
-                Chip {
-                    label: an.periodDays ? "Last " + an.periodDays + " days ▸" : "All time ▸"
-                    onClicked: an.periodDays = an.periodDays === 0 ? 30 : an.periodDays === 30 ? 7 : 0
+                RangeButton { id: rangeButton }
+                FilterText { text: "Min"; leftPadding: Theme.pad }
+                NumField {
+                    value: an.minMinutes
+                    placeholder: "0"
+                    onEdited: v => an.minMinutes = v
                 }
+                FilterText { text: "min"; rightPadding: Theme.pad }
                 Chip {
                     label: "Kills only"
                     checked: an.killsOnly
@@ -408,51 +615,36 @@ Item {
                         font.features: { "tnum": 1 }
                     }
 
-                    // DPS per run, oldest to newest.
+                    // Average DPS in each slice of the fight.
                     Item { width: 1; height: Math.round(4 * Theme.scale); visible: spark.visible }
-                    Text {
-                        visible: spark.visible
-                        text: an.hoverRun
-                            ? an.hoverRun.boss + "  ·  " + an.hoverRun.player + "  ·  " + an.date(an.hoverRun.start) + "  ·  " + Theme.compact(an.hoverRun.dps) + "/s"
-                            : "DPS per run" + (pane.s && pane.s.runs.length > 40 ? ", last 40" : "")
-                        color: an.hoverRun ? Theme.text : Theme.faint
-                        font.pixelSize: Theme.fontSmall
-                        font.family: Theme.fontFamily
-                        font.features: { "tnum": 1 }
-                        width: parent.width
-                        elide: Text.ElideRight
-                    }
-                    Row {
+                    DeathTimeline {
                         id: spark
-                        visible: an.group !== "run" && pane.s !== null
-                        readonly property var bars: pane.s ? pane.s.runs.slice(-40) : []
-                        readonly property real peak: Math.max(1, ...bars.map(r => r.dps))
-                        height: Math.round(56 * Theme.scale)
-                        spacing: Math.max(1, Math.round(2 * Theme.scale))
-                        Repeater {
-                            model: spark.bars
-                            Item {
-                                required property var modelData
-                                width: Math.min(Math.round(14 * Theme.scale), (pane.width - spark.spacing * (spark.bars.length - 1)) / spark.bars.length)
-                                height: spark.height
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: Math.max(2, parent.height * parent.modelData.dps / spark.peak)
-                                    radius: Math.min(2, width / 2)
-                                    color: an.hoverRun === parent.modelData ? Theme.accent
-                                        : Qt.alpha(an.group === "boss" ? Theme.accent : Theme.jobColor(parent.modelData.jobKey), parent.modelData.killed ? 0.75 : 0.35)
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onEntered: an.hoverRun = parent.modelData
-                                    onExited: if (an.hoverRun === parent.modelData) an.hoverRun = null
-                                    onClicked: an.openFight(parent.modelData.fightId)
-                                }
-                            }
-                        }
+                        readonly property var view: an.dpsView(pane.s, an.group)
+                        visible: view !== null
+                        width: pane.width
+                        title: view ? view.title : ""
+                        spanMs: view ? view.spanMs : 60000
+                        bins: view ? view.bins : []
+                        binMs: view ? view.binMs : 30000
+                        runs: view ? view.runs : 1
+                        barColor: Theme.accent
+                        fmt: v => Theme.compact(v)
+                        describe: v => Theme.compact(v) + "/s" + (spark.runs > 1 ? " on average over " + spark.runs + " runs" : "")
+                    }
+
+                    // Who died when (a run), or when deaths cluster (a boss).
+                    Item { width: 1; height: Math.round(4 * Theme.scale); visible: deaths.visible }
+                    DeathTimeline {
+                        id: deaths
+                        readonly property var view: an.deathView(pane.s, an.group, an.client.history)
+                        visible: view !== null
+                        width: pane.width
+                        title: view ? view.title : ""
+                        spanMs: view ? view.spanMs : 60000
+                        lanes: view ? view.lanes : []
+                        bins: view ? view.bins : []
+                        binMs: view ? view.binMs : 30000
+                        runs: view ? view.runs : 1
                     }
 
                     // Best run per boss (or per player).
@@ -524,13 +716,13 @@ Item {
                             if (!s) return "";
                             const per = an.group === "run" ? "" : " per run";
                             const lines = [
-                                "Crit " + Theme.percent(s.critRate, 0) + "  ·  back " + Theme.percent(s.backRate, 0) + "  ·  share " + Theme.percent(s.share, 0),
+                                "Crit " + Theme.percent(s.critRate, 0) + "  ·  back " + Theme.percent(s.backRate, 0) + (an.group === "run" ? "" : "  ·  share " + Theme.percent(s.share, 0)),
                                 (s.healPs > 0 ? "Heal " + Theme.compact(s.healPs) + "/s  ·  " : "") + "taken " + Theme.compact(s.takenPs) + "/s",
                                 (an.group === "run" ? s.deaths : s.deaths.toFixed(1)) + " deaths" + per + (an.group === "run" ? "" : "  ·  " + Theme.percent(s.killRate, 0) + " kills")
                             ];
                             // The newest gear: it changes over time.
                             const geared = s.runs.filter(r => r.gearScore > 0);
-                            if ((an.group === "player" || an.group === "run") && geared.length) {
+                            if (an.group === "player" && geared.length) {
                                 const g = geared[geared.length - 1];
                                 lines.push("Gear score " + g.gearScore + "  ·  CP " + Theme.compact(g.combatPower));
                             }
@@ -561,5 +753,34 @@ Item {
                 }
             }
         }
+    }
+
+    // ── the date range picker, over the page ──
+    MouseArea {
+        anchors.fill: parent
+        z: 10
+        visible: an.pickerOpen
+        onClicked: an.pickerOpen = false
+    }
+    DateRangePicker {
+        id: picker
+        z: 11
+        visible: opacity > 0
+        opacity: an.pickerOpen ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+        transform: Translate {
+            y: an.pickerOpen ? 0 : -Math.round(6 * Theme.scale)
+            Behavior on y { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+        }
+        fromMs: an.rangeFrom
+        toMs: an.rangeTo
+        preset: an.rangePreset
+        starts: an.client.history.map(f => f.startTimeMs)
+        onPicked: (from, to, preset) => {
+            an.rangeFrom = from;
+            an.rangeTo = to;
+            an.rangePreset = preset;
+        }
+        onClosed: an.pickerOpen = false
     }
 }

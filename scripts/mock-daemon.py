@@ -124,12 +124,19 @@ def main():
     for i in range(24):
         luck = [random.uniform(0.8, 1.2) for _ in PLAYERS]
         players = [{"id": pid, "name": n, "job": j, "jobKey": k, "damage": int(9e6 * m * l), "dps": 40_000 * m * l,
-                    "critRate": random.uniform(0.2, 0.4), "backRate": random.uniform(0.05, 0.3),
+                    "critRate": random.uniform(0.2, 0.4), "backRate": random.uniform(0.05, 0.3), "active": random.uniform(0.6, 0.98),
                     "heal": int(3e5 * l) if k in ("CLERIC", "CHANTER") else 0, "damageTaken": int(2e5 * l),
                     "deaths": random.choice([0, 0, 0, 1]), "gearScore": 1600 + pid, "combatPower": 78_000 + pid * 10}
                    for (pid, n, k, j, m), l in zip(PLAYERS, luck)]
+        duration = 140_000 + 20_000 * (i % 4)
+        for p in players:
+            # Deaths bunch up around a mechanic two thirds of the way in.
+            p["deathMs"] = sorted(min(duration, max(0, int(random.gauss(duration * 0.66, 15_000)))) for _ in range(p["deaths"]))
+            n = -(-duration // 30_000)
+            w = [random.uniform(0.6, 1.4) for _ in range(n)]
+            p["damageBins"] = [int(p["damage"] * x / sum(w)) for x in w]
         history.append({"id": f"mock-{i}", "bossName": ["Kromede", "Taloc", "Padmarashka", "Beritra"][i % 4],
-                        "startTimeMs": int((time.time() - 3600 * 9 * (i + 1)) * 1000), "durationMs": 140_000 + 20_000 * (i % 4),
+                        "startTimeMs": int((time.time() - 3600 * 9 * (i + 1)) * 1000), "durationMs": duration,
                         "totalDamage": sum(p["damage"] for p in players), "killed": i % 4 != 2, "players": players})
     try:
         os.unlink(PATH)

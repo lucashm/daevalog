@@ -1,0 +1,3 @@
+[build]
+# cap total parallelism (rustc LLVM threads share this jobserver too) so builds leave cores for the game
+jobs = 8

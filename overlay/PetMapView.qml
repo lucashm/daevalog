@@ -367,13 +367,13 @@ Item {
             Section { text: "MAP" }
             Grid {
                 width: parent.width
-                columns: 3
+                columns: 2
                 spacing: 6
                 Repeater {
                     model: MapData.maps
                     Pill {
                         required property var modelData
-                        width: (controls.width - 12) / 3
+                        width: (controls.width - 6) / 2
                         label: modelData.name
                         note: String(view.allDots.filter(d => d.map === modelData.id).length)
                         checked: view.map === modelData.id

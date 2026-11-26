@@ -3,15 +3,18 @@
 //! Unix socket.
 
 mod capture;
+mod characters;
 mod cubes;
 mod dispatch;
 mod game;
 mod history;
 mod icons;
 mod ipc;
+mod kina;
 mod meter;
 mod own_cp;
 mod pets;
+mod pvp;
 mod tcp;
 
 use std::collections::HashSet;
@@ -143,9 +146,11 @@ fn main() -> Result<()> {
     let npcs = NpcLookup::new();
     let storage = Arc::new(DataStorage::new());
     let mut dot_ids = HashSet::new();
+    let mut servers_json = None;
     match find_data_dir(args.data.clone()) {
         Some(dir) => {
             info!("Game data: {}", dir.display());
+            servers_json = std::fs::read_to_string(dir.join("servers.json")).ok();
             lookup::load_language(&skills, &npcs, &dir, &args.lang);
             if let Ok(text) = std::fs::read_to_string(dir.join("dot_skill_ids.json")) {
                 dot_ids.extend(serde_json::from_str::<Vec<i32>>(&text).unwrap_or_default());
@@ -167,10 +172,18 @@ fn main() -> Result<()> {
     let calc = DpsCalculator::new(storage.clone(), skills.clone(), npcs.clone(), ping.clone());
     let meter = Arc::new(Mutex::new(Meter::new(calc, storage.clone(), ping.clone())));
     let history = Arc::new(History::new(data_home().join("fights"))?);
+    // Fills the summary cache, so the first analytics open doesn't wait on every file.
+    std::thread::spawn({
+        let history = history.clone();
+        move || history.list(usize::MAX)
+    });
     let status = Arc::new(Mutex::new(CaptureStatus::default()));
     let clients = Clients::default();
     let pets = Arc::new(Mutex::new(Pets::load(data_home().join("pets.json"))));
     let cubes = Arc::new(Mutex::new(Cubes::load(data_home().join("cube-spots.json"))));
+    let mut pvp = pvp::Pvp::default();
+    let mut characters =
+        characters::Characters::load(data_home().join("characters.json"), servers_json.as_deref());
     {
         let (pets, cubes) = (pets.clone(), cubes.clone());
         // shortcut: stamped with the wall clock, so a replayed capture's farming rate is off; fine for live use.
@@ -179,6 +192,9 @@ fn main() -> Result<()> {
             pets.lock().frame(packet, now);
             cubes.lock().frame(packet, now);
             own_cp::frame(packet);
+            kina::frame(packet);
+            characters::frame(packet);
+            pvp::frame(packet);
         })));
     }
 
@@ -318,6 +334,7 @@ fn main() -> Result<()> {
 
     // ── meter: state to the overlay, fights to disk ────────────────────────
     let mut last_sent: Option<meter::OverlayState> = None;
+    let mut last_kina = (-1, -1);
     let mut last_save = Instant::now();
     loop {
         std::thread::sleep(Duration::from_millis(200));
@@ -326,7 +343,12 @@ fn main() -> Result<()> {
             force_send.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         let capture = status.lock().clone();
-        let state = meter.lock().state(capture);
+        characters.update(&storage, capture.game_running, now_ms());
+        // The game's word on your server, else your last-played character's: right after
+        // a restart mid-session the game hasn't said, and pets and faction must not wait.
+        let home = characters.list_server(storage.home_server_id());
+        let mut state = meter.lock().state(capture);
+        state.faction = meter::faction_of(home);
         let forced = force_send.swap(false, std::sync::atomic::Ordering::Relaxed);
         if forced || last_sent.as_ref() != Some(&state) {
             let line = serde_json::to_string(&state)?;
@@ -336,9 +358,22 @@ fn main() -> Result<()> {
             clients.broadcast(&line);
             last_sent = Some(state);
         }
+        if pvp.update(&storage, home, now_ms()) || forced {
+            if args.print { println!("{}", serde_json::to_string(&pvp.message())?); }
+            clients.broadcast(&serde_json::to_string(&pvp.message())?);
+        }
+        let kina = (kina::get(), kina::daily());
+        if kina.0 >= 0 && (forced || kina != last_kina) {
+            last_kina = kina;
+            clients.broadcast(&serde_json::json!({ "type": "kina", "balance": kina.0, "daily": kina.1 }).to_string());
+        }
+        if forced || characters.changed {
+            characters.changed = false;
+            clients.broadcast(&serde_json::to_string(&characters.message())?);
+        }
         {
             let mut p = pets.lock();
-            p.set_server(storage.fight_server_id(), now_ms());
+            p.set_server(home, now_ms());
             if forced || p.changed {
                 p.changed = false;
                 clients.broadcast(&serde_json::to_string(&p.message())?);
@@ -388,12 +423,14 @@ fn main() -> Result<()> {
             last_save = Instant::now();
             pets.lock().save();
             cubes.lock().save();
+            characters.save();
             let records = meter.lock().calc.snapshot_boss_fights();
             save_fights(&history, &clients, &storage, records);
         }
         if replay && parse_done.load(std::sync::atomic::Ordering::Relaxed) {
             let records = meter.lock().calc.snapshot_boss_fights_force();
             save_fights(&history, &clients, &storage, records);
+            characters.save();
             info!("Replay finished");
             if args.print {
                 let state = meter.lock().state(status.lock().clone());
@@ -427,8 +464,15 @@ fn save_fights(
     storage: &DataStorage,
     records: Vec<a2tools::entity::fight_record::FightRecord>,
 ) {
+    let me = storage.local_player_id();
     for mut record in records {
         unmask_names(&mut record, storage);
+        // Yours as the game last stated it when no roster did, as on the live meter.
+        if own_cp::get() > 0 {
+            for a in record.actors.iter_mut().filter(|a| Some(a.actor_id as i64) == me && a.combat_power == 0) {
+                a.combat_power = own_cp::get();
+            }
+        }
         match history.save(&record) {
             Ok(()) => {
                 info!("Saved fight: {} ({})", record.boss_name, record.id);
@@ -443,7 +487,7 @@ fn save_fights(
 fn handle_command(
     cmd: Command,
     meter: &Mutex<Meter>,
-    history: &History,
+    history: &Arc<History>,
     clients: &Clients,
     storage: &DataStorage,
 ) {
@@ -456,10 +500,13 @@ fn handle_command(
         }
         Command::TargetMode { mode } => meter.lock().calc.set_target_selection_mode(&mode),
         Command::Focus { id } => meter.lock().focus = id,
+        // Off the meter loop: with a cold cache this reads every saved fight.
         Command::History { limit } => {
-            let fights = history.list(limit.unwrap_or(30).min(200));
-            clients
-                .broadcast(&serde_json::json!({ "type": "history", "fights": fights }).to_string());
+            let (history, clients) = (history.clone(), clients.clone());
+            std::thread::spawn(move || {
+                let fights = history.list(limit.unwrap_or(30));
+                clients.broadcast(&serde_json::json!({ "type": "history", "fights": fights }).to_string());
+            });
         }
         Command::Fight { id } => {
             let Some(record) = history.load(&id) else {

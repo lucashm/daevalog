@@ -6,7 +6,7 @@ import Quickshell.Io
 
 // The pet map's data from Arkive (github.com/arkive-games/arkive, by tc-imba,
 // CC BY-NC 4.0), downloaded by fetch-map.sh into the data folder: each map's
-// pet spawn clusters by pet name, and the pets' portraits. The Abyss has no
+// pet spawn clusters by pet name, and the pets' portraits. The Abyss maps have no
 // spawn points there, so its pets go to the middle of the zones they drop in.
 Singleton {
     id: mapData
@@ -19,7 +19,9 @@ Singleton {
     readonly property var maps: [
         { id: "World_L_A", name: "Verteron", region: "Verteron", tiles: 8, levels: 2, game: 1010 },
         { id: "World_D_A", name: "Altgard", region: "Altgard", tiles: 8, levels: 2, game: 1110 },
-        { id: "Abyss_Reshanta_A", name: "Abyss", region: "Chaotic Lower Reshanta", tiles: 4, levels: 1 }
+        { id: "Abyss_Reshanta_A", name: "Lower Reshanta", region: "Chaotic Lower Reshanta", tiles: 4, levels: 1 },
+        // Arkive calls it "Chaotic Upper Reshanta"; the game and the pet data say Outer (map 23).
+        { id: "Abyss_Reshanta_D", name: "Outer Reshanta", region: "Chaotic Outer Reshanta", tiles: 2, levels: 1 }
     ]
     readonly property int tileSize: 1024
     function mapOf(id) {

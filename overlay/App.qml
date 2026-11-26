@@ -20,7 +20,7 @@ FloatingWindow {
     implicitHeight: 940
     color: AppTheme.bg
 
-    readonly property string page: ["pets", "map", "analytics", "notifications"].includes(settings.appPage) ? settings.appPage : "pets"
+    readonly property string page: ["characters", "pets", "map", "analytics", "notifications"].includes(settings.appPage) ? settings.appPage : "pets"
     // What the Map page shows when opened from a pet: { names, title }; null
     // shows every pet still needed under the Pets page's filters.
     property var mapQuery: null
@@ -37,7 +37,7 @@ FloatingWindow {
     onVisibleChanged: if (visible && MapData.status !== "fetching") MapData.fetch()
 
     readonly property var sections: [
-        { title: "IN GAME", pages: [{ id: "pets", label: "Pets", icon: "🐾" }, { id: "map", label: "Map", icon: "🗺" }] },
+        { title: "IN GAME", pages: [{ id: "characters", label: "Characters", icon: "🧝" }, { id: "pets", label: "Pets", icon: "🐾" }, { id: "map", label: "Map", icon: "🗺" }] },
         { title: "RECORDS", pages: [{ id: "analytics", label: "Analytics", icon: "📈" }] },
         { title: "SETTINGS", pages: [{ id: "notifications", label: "Notifications", icon: "🔔" }] }
     ]
@@ -148,8 +148,14 @@ FloatingWindow {
                 x: Math.max(32, (area.width - area.pageW) / 2)
                 y: 32
                 width: area.pageW
-                height: app.page === "pets" ? pets.implicitHeight : app.page === "notifications" ? notifications.implicitHeight : analytics.implicitHeight
+                height: app.page === "characters" ? characters.implicitHeight : app.page === "pets" ? pets.implicitHeight : app.page === "notifications" ? notifications.implicitHeight : analytics.implicitHeight
 
+                CharactersPage {
+                    id: characters
+                    width: parent.width
+                    visible: app.page === "characters"
+                    client: app.client
+                }
                 PetsPage {
                     id: pets
                     width: parent.width

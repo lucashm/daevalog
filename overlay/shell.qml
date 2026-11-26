@@ -197,6 +197,26 @@ ShellRoot {
         wanted: root.showWidgets && recent
     }
 
+    KinaRate {
+        id: kinaWidget
+        widgetId: "kina"
+        client: client
+        settings: settings
+        screen: root.gameScreen
+        editMode: root.editMode
+        wanted: root.showWidgets && recent
+    }
+
+    PvpPanel {
+        id: pvpWidget
+        widgetId: "pvp"
+        client: client
+        settings: settings
+        screen: root.gameScreen
+        editMode: root.editMode
+        wanted: root.showWidgets && active
+    }
+
     EditorLayer {
         id: editor
         settings: settings
@@ -204,7 +224,7 @@ ShellRoot {
         screen: root.gameScreen
         active: root.editMode
         // History isn't laid out: it opens on demand, centred.
-        widgets: [meterWidget, skillsWidget, bossWidget, statusWidget, petFarmWidget, cubeAlertWidget, eventAlertWidget]
+        widgets: [meterWidget, skillsWidget, bossWidget, statusWidget, petFarmWidget, kinaWidget, pvpWidget, cubeAlertWidget, eventAlertWidget]
         onDone: root.editMode = false
     }
 
