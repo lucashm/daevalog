@@ -1,0 +1,43 @@
+/* The app window: an ordinary dark desktop window (AppTheme.qml). */
+html, body, #root { margin: 0; height: 100%; background: #0B0C0E; color: #E8EAED; }
+body { font-family: 'Noto Sans', 'Segoe UI', sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+* { box-sizing: border-box; scrollbar-color: #22262E transparent; scrollbar-width: thin; }
+.app { display: flex; height: 100vh; }
+.sidebar { width: 230px; flex-shrink: 0; background: #0F1013; border-right: 1px solid #22262E; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.brand { padding: 0 8px 18px; font-size: 16px; font-weight: 700; }
+.nav-section { padding: 10px 8px 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; color: #6C7380; }
+.nav { position: relative; display: block; width: 100%; height: 36px; padding: 0 14px; text-align: left; border: 0; border-radius: 6px; background: transparent; color: #A3A9B5; cursor: pointer; white-space: pre; }
+.nav:hover { background: rgba(255, 255, 255, 0.03); }
+.nav.current { background: #161920; color: #E8EAED; }
+.nav.current::before { content: ''; position: absolute; left: 0; top: 9px; width: 3px; height: 18px; border-radius: 2px; background: #3D8BFF; }
+.sidebar-error { margin-top: auto; padding: 10px 8px; font-size: 12px; color: #F2C15A; overflow-wrap: anywhere; }
+.page { flex: 1; min-width: 0; overflow: auto; }
+.page-body { width: min(1180px, calc(100% - 64px)); margin: 32px auto; display: flex; flex-direction: column; gap: 20px; }
+.page-body.wide { width: max(1240px, calc(100% - 64px)); margin: 32px 32px; }
+.map-page { padding: 24px 32px; overflow: hidden; }
+.hover-row:hover { background: #1C2029; }
+input::placeholder { color: #6C7380; }
+.map-pin:hover { color: #3D8BFF !important; }
+/* A filter that would show results: three blinks, then it stays lit (PetMapView's Blink). */
+.blink { animation: blink 0.44s ease-in-out 3, blink-hold 0.22s ease-in-out 1.32s forwards; outline: 2px solid transparent; outline-offset: 0; }
+@keyframes blink { 0%, 100% { outline-color: rgba(242, 193, 90, 0.15); } 50% { outline-color: #F2C15A; } }
+@keyframes blink-hold { to { outline-color: rgba(242, 193, 90, 0.8); } }
+.cube { display: grid; place-items: center; }
+.cube-mark { width: 75%; height: 75%; transform: rotate(45deg); background: #4FD1E8; border: 1px solid #1d6a77; box-sizing: border-box; }
+.cube.spot .cube-mark { opacity: 0.5; }
+.cube.live .cube-mark { background: white; }
+.cube:hover .cube-mark { border: 2px solid white; }
+.cube-pulse { position: absolute; width: 200%; height: 200%; border-radius: 50%; border: 2px solid #4FD1E8; animation: cube-pulse 1.2s infinite; }
+@keyframes cube-pulse { 0% { transform: scale(0.4); opacity: 1; } 75%, 100% { transform: scale(1.2); opacity: 0; } }
+.zoom-button { width: 32px; height: 32px; border-radius: 6px; background: rgba(18, 20, 25, 0.9); border: 1px solid #22262E; color: #E8EAED; font-size: 16px; cursor: pointer; }
+.zoom-button:hover { background: #1C2029; }
+.analytics-row { background: rgba(255, 255, 255, 0.05); }
+.analytics-row:hover { background: rgba(255, 255, 255, 0.10) !important; }
+.death-dot { background: #F0605D; }
+.death-dot:hover { background: #E9EDF5; }
+.bin:hover .bin-bar { background: #E9EDF5 !important; opacity: 1 !important; }
+.range-button:hover { filter: brightness(1.2); }
+.preset:hover { background: rgba(255, 255, 255, 0.08) !important; }
+.cal-nav { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; cursor: pointer; color: #9AA4B8; }
+.cal-nav:hover { background: rgba(255, 255, 255, 0.08); color: #E9EDF5; }

@@ -1,14 +1,24 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
-import './style.css';
 
-class AppBoundary extends React.Component<{ children: React.ReactNode }, { error: string }> {
+// One bundle, two windows: the in-game overlay (Rust sets this before the page
+// loads) and the app window.
+const view = (window as unknown as { __DAEVALOG_VIEW__?: string }).__DAEVALOG_VIEW__
+  ?? new URLSearchParams(location.search).get('view');
+const Root = view === 'overlay' ? lazy(() => import('./overlay/Overlay')) : lazy(() => import('./app/App'));
+
+class Boundary extends React.Component<{ children: React.ReactNode }, { error: string }> {
   state = { error: '' };
   static getDerivedStateFromError(error: Error) { return { error: error.message }; }
   render() {
-    return this.state.error ? <main className="startup-error"><h1>Daevalog could not display this page.</h1><p>{this.state.error}</p><button onClick={() => location.reload()}>Reload companion</button></main> : this.props.children;
+    if (!this.state.error) return this.props.children;
+    // The overlay draws nothing rather than an error over the game.
+    if (view === 'overlay') return null;
+    return <main style={{ padding: 40, color: '#E8EAED', fontFamily: 'Segoe UI, sans-serif' }}>
+      <h1>Daevalog could not display this page.</h1><p>{this.state.error}</p>
+      <button onClick={() => location.reload()}>Reload</button>
+    </main>;
   }
 }
-createRoot(document.getElementById('root')!).render(<AppBoundary><App /></AppBoundary>);
-if (import.meta.env.VITE_UI_SMOKE === '1') void import('./smoke').then(m => m.runSmoke());
+
+createRoot(document.getElementById('root')!).render(<Boundary><Suspense fallback={null}><Root /></Suspense></Boundary>);

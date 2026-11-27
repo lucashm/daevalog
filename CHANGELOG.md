@@ -2,29 +2,18 @@
 
 ## Unreleased
 
-- Windows companion rebuilt with the selected Command visuals and Questlog-like
-  navigation using Tauri 2, React and TypeScript. Includes real-data overview,
-  combat, pet filters/pins, saved-fight drill-down, native egui overlays,
-  layout anchors, guarded click-through, event/cube reminders and tray lifecycle.
-- Windows companion has the newer Linux features too: Characters (class, level,
-  combat power, gear score, Odyle energy with its recharge), PvP (enemies around
-  you, who's hitting you, their HP and combat power), kina per second while
-  farming with the daily cap, CP and deaths on the meter, a death timeline and
-  party DPS over the fight in saved fights, and Analytics (runs by player, class,
-  boss or run, with a date range, filters, trends and best runs)
-- Two more native Windows widgets, PvP and Kina/s; saved layouts gain them
+- Windows: Daevalog runs on Windows 10/11 x64, looking and working as on Linux:
+  the widgets over the game (meter, skills, boss HP, ping, history, pet souls,
+  kina/s, PvP, hidden cube alerts, event reminders), Customize (Ctrl+`) with the
+  grid, guides, layouts and settings, hide/show (Alt+`), the tray, and the app
+  window's Characters, Pets, Map, Analytics and Notifications. Widget settings are
+  the same overlay.json. A Capture page picks the Npcap adapter and replays a pcap.
+  The capture and parser are the same `aion2-meterd`, over private pipes.
 - A Windows installer next to the portable ZIP: per-user (no administrator
   prompt), Start menu entry, uninstaller, WebView2 when missing; when Npcap isn't
   installed it offers to download the official Npcap installer from npcap.com
   (pinned SHA-256) and run it, or opens the download page if that fails
-- Preserve existing capture formats and add opt-in Windows replay keep-open for
-  companion history inspection; Linux and default replay EOF behavior remain.
-- Native Windows x64 Daevalog desktop app with shared capture/parser/DPS engine,
-  Npcap support, compact always-on-top and click-through modes, fight history,
-  pet collection data, adapter selection and pcap replay.
-- Portable Windows ZIPs/checksums in CI and tagged releases, plus Windows
-  setup/build/troubleshooting documentation. Npcap remains a separate install.
-- Keep the existing Linux desktop, Unix socket, services and installation path.
+- Portable Windows ZIPs and installers with checksums in CI and tagged releases
 - Characters, PvP and kina from the daemon now build against the pinned A2Tools
   parser (your home server is read from your own self record)
 

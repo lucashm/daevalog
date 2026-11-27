@@ -1,34 +1,13 @@
-use crate::game_keys::{self, GameKey};
+//! The Tauri app: the app window (as the Linux app window), the in-game
+//! overlay (as the Linux widgets), the tray, and the session both read.
+use crate::game_keys::{self, GameKey, Shortcuts};
+use crate::overlay;
 use crate::session::{Action, Session, Snapshot};
-
-/// Alt+` or the tray: hide or show the native widgets.
-fn toggle_overlays(session: &Session) {
-    let mut preferences = session.snapshot().preferences;
-    preferences.overlay_visible = !preferences.overlay_visible;
-    let _ = session.act(Action::Preferences { preferences });
-}
-
-/// Ctrl+`: the widgets on screen and draggable, and the app open on Overlay studio.
-fn customize(app: &tauri::AppHandle) {
-    let session = app.state::<Session>();
-    let mut preferences = session.snapshot().preferences;
-    if !preferences.overlay_visible {
-        preferences.overlay_visible = true;
-        let _ = session.act(Action::Preferences { preferences });
-    }
-    let _ = session.act(Action::LockOverlay { locked: false });
-    let _ = session.act(Action::Navigate {
-        page: "overlays".into(),
-    });
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
-}
+use crate::settings::{self, DEFAULT_EDIT_KEY, DEFAULT_HIDE_KEY};
+use std::sync::{Arc, Mutex};
 use tauri::{
-    Manager,
-    menu::{Menu, MenuItem},
+    AppHandle, Manager,
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
 };
 
@@ -38,141 +17,208 @@ fn snapshot(session: tauri::State<'_, Session>, since: Option<u64>) -> Option<Sn
     session.snapshot_since(since)
 }
 
+/// The saved fights; null while the webview already has `since`.
 #[tauri::command]
-async fn act(app: tauri::AppHandle, action: Action) -> Result<(), String> {
+fn history(session: tauri::State<'_, Session>, since: Option<u64>) -> Option<serde_json::Value> {
+    session.history_since(since).map(|h| (*h).clone())
+}
+
+#[tauri::command]
+async fn act(app: AppHandle, action: Action) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || app.state::<Session>().act(action))
         .await
         .map_err(|e| e.to_string())?
 }
 
+/// The overlay page's clickable regions and whether it draws anything.
 #[tauri::command]
-fn window_action(window: tauri::WebviewWindow, action: &str) -> Result<(), String> {
-    match action {
-        "minimize" => window.minimize(),
-        "maximize" => {
-            if window.is_maximized().map_err(|e| e.to_string())? {
-                window.unmaximize()
-            } else {
-                window.maximize()
-            }
-        }
-        "hide" => window.hide(),
-        "drag" => window.start_dragging(),
-        "quit" => {
-            window.app_handle().exit(0);
-            Ok(())
-        }
-        _ => return Err("Unknown window action".into()),
-    }
-    .map_err(|e| e.to_string())
+fn overlay_input(app: AppHandle, shared: tauri::State<'_, overlay::Shared>, input: overlay::Input) {
+    overlay::set_input(&app, &shared, input);
 }
 
-#[cfg(feature = "ui-smoke")]
+/// The monitors' names, for Customize's monitor picker.
 #[tauri::command]
-fn smoke_report(
-    app: tauri::AppHandle,
-    report: serde_json::Value,
-    complete: Option<bool>,
-) -> Result<(), String> {
-    let path =
-        std::env::var_os("AION2_COMPANION_SMOKE_REPORT").ok_or("Smoke output is not configured")?;
-    let complete = complete.unwrap_or(true);
-    let path = std::path::PathBuf::from(path);
-    std::fs::write(
-        if complete {
-            path
-        } else {
-            path.with_extension("ready.json")
-        },
-        report.to_string(),
-    )
-    .map_err(|e| e.to_string())?;
-    if complete {
-        app.exit(0);
+fn monitors(app: AppHandle) -> Vec<String> {
+    app.available_monitors()
+        .map(|ms| ms.into_iter().filter_map(|m| m.name().cloned()).collect())
+        .unwrap_or_default()
+}
+
+/// The app window, on a page or as it was.
+fn open_app(app: &AppHandle, page: Option<&str>) {
+    if let Some(page) = page {
+        let _ = app
+            .state::<Session>()
+            .act(Action::Navigate { page: page.into() });
     }
-    Ok(())
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+fn pinned_monitor(snapshot: &Snapshot) -> String {
+    snapshot.settings["pinnedMonitor"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
 }
 
 pub fn run() -> tauri::Result<()> {
-    let builder = tauri::Builder::default()
-        .manage(Session::new())
-        .invoke_handler(tauri::generate_handler![snapshot, act, window_action]);
-    #[cfg(feature = "ui-smoke")]
-    let builder = builder.invoke_handler(tauri::generate_handler![
-        snapshot,
-        act,
-        window_action,
-        smoke_report
-    ]);
-    let app = builder
-        .setup(|app| {
-            let window =
-                tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?
-                    .on_navigation(|url| {
-                    matches!((url.scheme(), url.host_str()), ("tauri", Some("localhost")) | ("http" | "https", Some("tauri.localhost")))
-                        || (cfg!(debug_assertions) && matches!(url.host_str(), Some("localhost" | "127.0.0.1")) && url.port() == Some(5173))
-                    });
-            #[cfg(feature = "ui-smoke")]
-            let window = if let Ok(replay) = std::env::var("AION2_COMPANION_SMOKE_REPLAY") {
-                window.initialization_script(format!(
-                    "window.__DAEVALOG_SMOKE__={};",
-                    serde_json::json!({"replay":replay, "holdMs":std::env::var("AION2_COMPANION_SMOKE_HOLD_MS").ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0).min(30_000)})
-                ))
-            } else {
-                window
-            };
-            window.build()?;
-            let show = MenuItem::with_id(app, "show", "Open Daevalog", true, None::<&str>)?;
-            let customize_item =
-                MenuItem::with_id(app, "customize", "Customize overlays (Ctrl+`)", true, None::<&str>)?;
-            let hide =
-                MenuItem::with_id(app, "overlays", "Show / hide overlays (Alt+`)", true, None::<&str>)?;
-            let unlock = MenuItem::with_id(app, "unlock", "Unlock overlays", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit Daevalog", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &customize_item, &hide, &unlock, &quit])?;
-            // In game only: the keys are free in other apps.
+    let shortcuts: Shortcuts = Arc::new(Mutex::new([
+        DEFAULT_EDIT_KEY.to_string(),
+        DEFAULT_HIDE_KEY.to_string(),
+    ]));
+    let shared: overlay::Shared = Arc::default();
+    let app = tauri::Builder::default()
+        .manage(shared.clone())
+        .invoke_handler(tauri::generate_handler![
+            snapshot,
+            history,
+            act,
+            overlay_input,
+            monitors
+        ])
+        .setup(move |app| {
             let handle = app.handle().clone();
-            game_keys::spawn(move |key| match key {
-                GameKey::ToggleOverlays => toggle_overlays(&handle.state::<Session>()),
-                GameKey::Customize => customize(&handle),
-            });
+            // Every new state: the shortcuts and the overlay follow the settings and Customize.
+            // Before the windows, which poll it from their first frame.
+            let session = {
+                let (handle, shared, shortcuts) =
+                    (handle.clone(), shared.clone(), shortcuts.clone());
+                let last_pinned = Mutex::new(String::new());
+                Session::new(move |s| {
+                    *shortcuts.lock().unwrap_or_else(|e| e.into_inner()) = [
+                        settings::shortcut(&s.settings, "shortcutEdit", DEFAULT_EDIT_KEY),
+                        settings::shortcut(&s.settings, "shortcutHide", DEFAULT_HIDE_KEY),
+                    ];
+                    let pinned = pinned_monitor(s);
+                    let mut last = last_pinned.lock().unwrap_or_else(|e| e.into_inner());
+                    if *last != pinned {
+                        overlay::place(&handle, &shared, &pinned);
+                        *last = pinned;
+                    }
+                    overlay::follow_edit(&handle, &shared, s.edit_mode);
+                })
+            };
+            app.manage(session);
+
+            tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?
+                .on_navigation(|url| {
+                    matches!(
+                        (url.scheme(), url.host_str()),
+                        ("tauri", Some("localhost")) | ("http" | "https", Some("tauri.localhost"))
+                    ) || (cfg!(debug_assertions)
+                        && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
+                        && url.port() == Some(5173))
+                })
+                .build()?;
+            overlay::create(&handle)?;
+            let pinned = pinned_monitor(&app.state::<Session>().snapshot());
+            overlay::place(&handle, &shared, &pinned);
+            overlay::watch_pointer(handle.clone(), shared.clone());
+            // Opened again: this one's app window. `--quit`: quit as from the tray.
+            {
+                let (show_app, quit_app) = (handle.clone(), handle.clone());
+                crate::instance::listen(
+                    move || open_app(&show_app, None),
+                    move || quit_app.exit(0),
+                );
+            }
+
+            {
+                let (focus_app, key_app, shared) = (handle.clone(), handle.clone(), shared.clone());
+                game_keys::spawn(
+                    shortcuts.clone(),
+                    move |in_front, window| {
+                        let session = focus_app.state::<Session>();
+                        session.set_game_focused(in_front);
+                        let pinned = pinned_monitor(&session.snapshot());
+                        overlay::game_focus(&focus_app, &shared, in_front, window, &pinned);
+                    },
+                    move |key| {
+                        let session = key_app.state::<Session>();
+                        let _ = session.act(match key {
+                            GameKey::Customize => Action::Edit { on: None },
+                            GameKey::ToggleWidgets => Action::ToggleHide {},
+                        });
+                    },
+                );
+            }
+
+            // The Linux tray's menu.
+            let item = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>);
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &item("edit", "Customize")?,
+                    &item("hide", "Hide / show widgets")?,
+                    &item("history", "Fight history")?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &item("app", "Open app")?,
+                    &item("analytics", "Analytics")?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &item("reset", "Reset meter")?,
+                    &item("quit", "Quit Daevalog")?,
+                ],
+            )?;
             let icon = tauri::image::Image::from_bytes(include_bytes!(
                 "../../desktop/aion2-meter-elyos.png"
             ))?;
             TrayIconBuilder::new()
                 .icon(icon)
-                .tooltip("Daevalog · AION 2 companion")
+                .tooltip("Daevalog")
                 .menu(&menu)
-                .show_menu_on_left_click(true)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    "quit" => app.exit(0),
-                    id @ ("overlays" | "unlock" | "customize") => {
-                        let app = app.clone();
-                        let id = id.to_string();
-                        // Off the event loop: session actions wait for the actor.
-                        std::thread::spawn(move || match id.as_str() {
-                            "unlock" => {
-                                let _ = app
-                                    .state::<Session>()
-                                    .act(Action::LockOverlay { locked: false });
-                            }
-                            "customize" => customize(&app),
-                            _ => toggle_overlays(&app.state::<Session>()),
+                .show_menu_on_left_click(false)
+                .on_tray_icon_event(|tray, event| {
+                    // Left click hides or shows the widgets, as on Linux.
+                    if let tauri::tray::TrayIconEvent::Click {
+                        button: tauri::tray::MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle().clone();
+                        std::thread::spawn(move || {
+                            let _ = app.state::<Session>().act(Action::ToggleHide {});
                         });
                     }
-                    _ => {}
+                })
+                .on_menu_event(|app, event| {
+                    let app = app.clone();
+                    let id = event.id.as_ref().to_string();
+                    // Off the event loop: session actions wait for the actor.
+                    std::thread::spawn(move || {
+                        let session = app.state::<Session>();
+                        let _ = match id.as_str() {
+                            "edit" => session.act(Action::Edit { on: None }),
+                            "hide" => session.act(Action::ToggleHide {}),
+                            "history" => session.act(Action::HistoryPanel {
+                                open: None,
+                                fight: None,
+                            }),
+                            "app" | "analytics" => {
+                                open_app(&app, (id == "analytics").then_some("analytics"));
+                                Ok(())
+                            }
+                            "reset" => session.act(Action::Reset {}),
+                            "quit" => {
+                                app.exit(0);
+                                Ok(())
+                            }
+                            _ => Ok(()),
+                        };
+                    });
                 })
                 .build(app)?;
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            // Closing the app window hides it: capture and the widgets go on.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
+                && window.label() == "main"
+            {
                 api.prevent_close();
                 let _ = window.hide();
             }

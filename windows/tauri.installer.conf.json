@@ -18,8 +18,7 @@
       "../third_party/a2tools/src/data/skill_icons.json": "data/skill_icons.json",
       "../third_party/a2tools/src/data/abnormals.json": "data/abnormals.json",
       "../third_party/a2tools/src/data/servers.json": "data/servers.json",
-      "../docs/windows.md": "WINDOWS.md",
-      "fonts/OFL.txt": "licenses/NotoSansCJK-OFL.txt"
+      "../docs/windows.md": "WINDOWS.md"
     },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },

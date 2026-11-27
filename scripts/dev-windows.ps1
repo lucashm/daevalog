@@ -30,11 +30,8 @@ try {
     # Tauri runs Vite for the UI and rebuilds the app when windows/src changes.
     $devConfig = Join-Path $target 'tauri-dev.conf.json'
     [IO.File]::WriteAllText($devConfig, '{"build":{"devUrl":"http://127.0.0.1:5173","beforeDevCommand":{"script":"npm run dev","cwd":"ui"}}}')
-    $running = Get-Process -Name 'aion2-meter-windows', 'aion2-meterd' -ErrorAction SilentlyContinue
-    if ($running) {
-        Write-Warning 'Closing the installed Daevalog: only one meter can capture at a time.'
-        $running | Stop-Process -Force
-    }
+    # Only one meter can capture at a time (and only one Daevalog runs).
+    & "$PSScriptRoot/close-daevalog.ps1"
     Push-Location 'windows'
     try {
         & ./ui/node_modules/.bin/tauri.cmd dev --config $devConfig

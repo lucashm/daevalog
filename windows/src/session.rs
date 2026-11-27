@@ -1,15 +1,15 @@
-//! One actor owns capture and overlays. Webview polling only reads its coalesced cache.
+//! One actor owns capture and the shared state both webviews (the app window
+//! and the in-game overlay) read. Webviews poll its coalesced snapshot.
 use crate::backend::{self, Backend};
-use crate::model::{Enemy, Kina, read_pets};
+use crate::model::Kina;
 use crate::preferences::Preferences;
+use crate::settings;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::io::{BufRead, BufReader, Write};
-use std::os::windows::process::CommandExt;
-use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Condvar, Mutex, mpsc};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+/// The daemon's messages, as the Linux overlay's MeterClient keeps them.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
@@ -17,47 +17,44 @@ pub struct Snapshot {
     pub running: bool,
     pub replay: bool,
     pub replay_complete: bool,
+    /// The live meter (daemon/src/meter.rs, OverlayState); null without capture.
     pub state: Value,
+    /// Pet levels, souls and what's being farmed (daemon/src/pets.rs), as sent.
     pub pets: Value,
-    /// Your characters (daemon/src/characters.rs): `{ playing, list }`, null before the daemon says.
+    /// Your characters (daemon/src/characters.rs): `{ playing, list }`.
     pub characters: Value,
-    /// The enemy players around you right now.
-    pub pvp: Vec<Enemy>,
+    /// The enemy players around you (daemon/src/pvp.rs).
+    pub pvp: Value,
     pub kina: Kina,
-    pub fights: Value,
+    /// Saved fights' summaries, newest first. Every fight for Analytics: too big
+    /// to copy with each meter update, so it's fetched apart (`history`) when
+    /// `history_revision` changes.
+    #[serde(skip)]
+    pub history: Arc<Value>,
+    pub history_revision: u64,
+    /// One saved fight in full, as last asked for.
     pub fight: Value,
+    /// Hidden cube spots seen, by map id.
+    pub cube_spots: Value,
+    /// The latest cube messages, each with a rising `seq`: the overlay takes the new ones.
+    pub cube_events: Vec<Value>,
     pub adapters: Vec<backend::Adapter>,
     pub preferences: Preferences,
-    pub error: Option<String>,
-    pub notice: Option<Notice>,
-    pub overlay_locked: bool,
-    pub overlay_hotkey: bool,
-    pub overlay_passthrough: bool,
-    pub overlay_windows: usize,
-    pub data_dir: String,
-    /// The page the app was last told to show (`{ page, seq }`), e.g. by Ctrl+` in game.
+    /// overlay.json, as on Linux.
+    pub settings: Value,
+    /// Customize: the widgets are dragged over the game.
+    pub edit_mode: bool,
+    /// The fight history over the game, and the fight it was asked to open (`{ id, seq }`).
+    pub history_open: bool,
+    pub history_request: Value,
+    /// AION 2 is the window in front.
+    pub game_focused: bool,
+    /// The app page it was last told to show (`{ page, seq }`).
     pub nav: Value,
-}
-
-/// The companion's pages (windows/ui/src/App.tsx).
-const PAGES: [&str; 10] = [
-    "home",
-    "combat",
-    "pvp",
-    "pets",
-    "overlays",
-    "characters",
-    "history",
-    "analytics",
-    "alerts",
-    "settings",
-];
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Notice {
-    pub text: String,
-    pub expires: u64,
+    /// A sample alert from the Notifications page (`{ event, seq }`): a cube event or `{ reminder }`.
+    pub test_notification: Value,
+    pub error: Option<String>,
+    pub data_dir: String,
 }
 
 impl Default for Snapshot {
@@ -67,37 +64,62 @@ impl Default for Snapshot {
             running: false,
             replay: false,
             replay_complete: false,
-            state: json!({}),
+            state: Value::Null,
             pets: Value::Null,
             characters: Value::Null,
-            pvp: Vec::new(),
+            pvp: json!([]),
             kina: Kina::default(),
-            fights: json!([]),
+            history: Arc::new(json!([])),
+            history_revision: 0,
             fight: Value::Null,
+            cube_spots: json!({}),
+            cube_events: Vec::new(),
             adapters: Vec::new(),
             preferences: Preferences::default(),
-            error: None,
-            notice: None,
-            overlay_locked: false,
-            overlay_hotkey: false,
-            overlay_passthrough: false,
-            overlay_windows: 0,
-            data_dir: backend::data_dir().display().to_string(),
+            settings: json!({}),
+            edit_mode: false,
+            history_open: false,
+            history_request: Value::Null,
+            game_focused: false,
             nav: Value::Null,
+            test_notification: Value::Null,
+            error: None,
+            data_dir: backend::data_dir().display().to_string(),
         }
     }
 }
 
 impl Snapshot {
+    /// What only a running capture can say: the meter and who's around.
     fn clear_live_state(&mut self) {
         self.running = false;
-        self.state = json!({});
-        self.pvp.clear();
+        self.state = Value::Null;
+        self.pvp = json!([]);
     }
 }
 
 /// Analytics compares every saved fight, as the Linux app does.
 const HISTORY_LIMIT: usize = 100_000;
+/// Cube messages kept for a webview that polls late.
+const CUBE_EVENTS: usize = 32;
+/// The app window's pages (windows/ui/src/app/App.tsx).
+pub const PAGES: [&str; 6] = [
+    "pets",
+    "map",
+    "analytics",
+    "characters",
+    "notifications",
+    "capture",
+];
+/// The meter's target modes (A2Tools' selection modes, as the Linux Customize panel offers them).
+const TARGET_MODES: [&str; 6] = [
+    "bossTargets",
+    "lastHitByMe",
+    "mostDamage",
+    "mostRecent",
+    "allTargets",
+    "trainTargets",
+];
 
 pub fn now_ms() -> u64 {
     SystemTime::now()
@@ -106,27 +128,61 @@ pub fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
+/// What a webview may ask; anything else is refused.
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Action {
-    Start { replay: Option<String> },
+    Start {
+        replay: Option<String>,
+    },
     Stop {},
     Reset {},
-    Target { mode: String },
-    Focus { id: Option<i32> },
+    Target {
+        mode: String,
+    },
+    Focus {
+        id: Option<i32>,
+    },
     History {},
-    Fight { id: String },
-    Preferences { preferences: Preferences },
+    Fight {
+        id: String,
+    },
+    Preferences {
+        preferences: Preferences,
+    },
     RefreshAdapters {},
-    LockOverlay { locked: bool },
-    TestAlert {},
-    Navigate { page: String },
+    Settings {
+        settings: Value,
+    },
+    /// Customize on, off, or toggled.
+    Edit {
+        on: Option<bool>,
+    },
+    /// Hide or show the widgets (`hideWidgets`), toggled.
+    ToggleHide {},
+    /// The history over the game: open, closed or toggled, optionally on a fight.
+    HistoryPanel {
+        open: Option<bool>,
+        fight: Option<String>,
+    },
+    Navigate {
+        page: String,
+    },
+    /// A sample alert for the overlay to show.
+    TestNotification {
+        event: Value,
+    },
+    /// The alert chime (overlay/sounds/cube.wav).
+    Chime {},
 }
 
 enum Request {
     Action(Action, mpsc::Sender<Result<(), String>>),
+    GameFocus(bool),
     Quit,
 }
+
+type OnPublish = Box<dyn Fn(&Snapshot) + Send>;
 
 pub struct Session {
     tx: mpsc::SyncSender<Request>,
@@ -135,11 +191,13 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new() -> Self {
+    /// `on_publish` sees every new snapshot, on the actor's thread (windows follow edit mode with it).
+    pub fn new(on_publish: impl Fn(&Snapshot) + Send + 'static) -> Self {
         let cache = Arc::new(Mutex::new(Snapshot::default()));
-        let (tx, rx) = mpsc::sync_channel(32);
+        let (tx, rx) = mpsc::sync_channel(64);
         let shared = cache.clone();
-        let thread = std::thread::spawn(move || Actor::new(shared).run(rx));
+        let on_publish: OnPublish = Box::new(on_publish);
+        let thread = std::thread::spawn(move || Actor::new(shared, on_publish).run(rx));
         Self {
             tx,
             cache,
@@ -149,19 +207,27 @@ impl Session {
     pub fn snapshot(&self) -> Snapshot {
         self.cache.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
-    /// The snapshot only when it changed since `revision`: the webview polls
+    /// The snapshot only when it changed since `revision`: the webviews poll
     /// often, and a long fight history is too big to copy on every poll.
     pub fn snapshot_since(&self, revision: Option<u64>) -> Option<Snapshot> {
         let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         (Some(cache.revision) != revision).then(|| cache.clone())
     }
+    /// The saved fights, only when they changed since `revision`.
+    pub fn history_since(&self, revision: Option<u64>) -> Option<Arc<Value>> {
+        let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        (Some(cache.history_revision) != revision).then(|| cache.history.clone())
+    }
     pub fn act(&self, action: Action) -> Result<(), String> {
         let (tx, rx) = mpsc::channel();
         self.tx
             .try_send(Request::Action(action, tx))
-            .map_err(|_| "Companion is busy or shutting down".to_string())?;
+            .map_err(|_| "Daevalog is busy or shutting down".to_string())?;
         rx.recv_timeout(Duration::from_secs(10))
-            .map_err(|_| "Companion command timed out".to_string())?
+            .map_err(|_| "Daevalog command timed out".to_string())?
+    }
+    pub fn set_game_focused(&self, focused: bool) {
+        let _ = self.tx.try_send(Request::GameFocus(focused));
     }
     pub fn shutdown(&self) {
         let mut thread = self.thread.lock().unwrap_or_else(|e| e.into_inner());
@@ -176,45 +242,38 @@ struct Actor {
     cache: Arc<Mutex<Snapshot>>,
     snapshot: Snapshot,
     backend: Option<Backend>,
-    overlay: Option<Overlay>,
-    reminders: [u64; 2],
+    on_publish: OnPublish,
+    cube_seq: u64,
 }
 
 impl Actor {
-    fn new(cache: Arc<Mutex<Snapshot>>) -> Self {
+    fn new(cache: Arc<Mutex<Snapshot>>, on_publish: OnPublish) -> Self {
         let mut snapshot = Snapshot::default();
         let _ = std::fs::create_dir_all(backend::data_dir());
         match Preferences::load(&backend::data_dir().join("companion.json")) {
             Ok(prefs) => snapshot.preferences = prefs,
             Err(e) => snapshot.error = Some(e),
         }
+        snapshot.settings = settings::load(&backend::data_dir().join("overlay.json"));
         Self {
             cache,
             snapshot,
             backend: None,
-            overlay: None,
-            reminders: [0; 2],
+            on_publish,
+            cube_seq: 0,
         }
     }
     fn publish(&mut self) {
         self.snapshot.revision += 1;
         *self.cache.lock().unwrap_or_else(|e| e.into_inner()) = self.snapshot.clone();
-        if let Some(overlay) = &self.overlay {
-            overlay.push(json!({
-                "state":self.snapshot.state, "preferences":self.snapshot.preferences,
-                "notice":self.snapshot.notice, "locked":self.snapshot.overlay_locked,
-                "pvp":self.snapshot.pvp, "kina":self.snapshot.kina,
-            }));
-        }
+        (self.on_publish)(&self.snapshot);
     }
     fn start(&mut self, replay: Option<String>) -> Result<(), String> {
         self.backend.take();
-        self.snapshot.running = false;
-        self.snapshot.state = json!({});
+        self.snapshot.clear_live_state();
         self.snapshot.fight = Value::Null;
         self.snapshot.pets = Value::Null;
         self.snapshot.characters = Value::Null;
-        self.snapshot.pvp.clear();
         self.snapshot.kina = Kina::default();
         self.snapshot.replay = replay.as_ref().is_some_and(|p| !p.is_empty());
         self.snapshot.replay_complete = false;
@@ -238,6 +297,11 @@ impl Actor {
         backend.send(value);
         Ok(())
     }
+    fn save_settings(&mut self, value: Value) -> Result<(), String> {
+        settings::save(&backend::data_dir().join("overlay.json"), &value)?;
+        self.snapshot.settings = value;
+        Ok(())
+    }
     fn action(&mut self, action: Action) -> Result<(), String> {
         match action {
             Action::Start { replay } => self.start(replay)?,
@@ -245,9 +309,13 @@ impl Actor {
                 self.backend.take();
                 self.snapshot.clear_live_state();
             }
-            Action::Reset {} => self.send(json!({"cmd":"reset"}))?,
+            Action::Reset {} => {
+                self.send(json!({"cmd":"reset"}))?;
+                // Kina/s starts over with the next kina, as on Linux.
+                self.snapshot.kina.reset();
+            }
             Action::Target { mode } => {
-                if !["bossTargets", "allTargets", "lastHitByMe"].contains(&mode.as_str()) {
+                if !TARGET_MODES.contains(&mode.as_str()) {
                     return Err("Invalid target mode".into());
                 }
                 self.send(json!({"cmd":"targetMode","mode":mode}))?;
@@ -255,70 +323,52 @@ impl Actor {
             Action::Focus { id } => self.send(json!({"cmd":"focus","id":id}))?,
             Action::History {} => self.send(json!({"cmd":"history","limit":HISTORY_LIMIT}))?,
             Action::Fight { id } => {
-                if id.is_empty()
-                    || id.len() > 160
-                    || !id
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-                {
-                    return Err("Invalid fight ID".into());
-                }
+                check_fight_id(&id)?;
                 self.snapshot.fight = Value::Null;
                 self.send(json!({"cmd":"fight","id":id}))?;
             }
             Action::RefreshAdapters {} => self.snapshot.adapters = backend::adapters()?,
             Action::Preferences { preferences } => {
-                preferences.validate()?;
                 preferences.save(&backend::data_dir().join("companion.json"))?;
                 self.snapshot.preferences = preferences;
-                self.sync_overlay()?;
             }
-            Action::LockOverlay { locked } => {
-                if locked && (!self.snapshot.overlay_hotkey || self.overlay.is_none()) {
-                    return Err(
-                        "Open the overlays and register Ctrl+Alt+M before enabling click-through"
-                            .into(),
-                    );
+            Action::Settings { settings } => self.save_settings(settings)?,
+            Action::Edit { on } => self.snapshot.edit_mode = on.unwrap_or(!self.snapshot.edit_mode),
+            Action::ToggleHide {} => {
+                let mut value = self.snapshot.settings.clone();
+                let hidden = settings::hide_widgets(&value);
+                settings::set_hide_widgets(&mut value, !hidden);
+                self.save_settings(value)?;
+            }
+            Action::HistoryPanel { open, fight } => {
+                let open = open.unwrap_or(!self.snapshot.history_open) || fight.is_some();
+                self.snapshot.history_open = open;
+                if let Some(id) = fight {
+                    check_fight_id(&id)?;
+                    let seq = self.snapshot.history_request["seq"].as_u64().unwrap_or(0) + 1;
+                    self.snapshot.history_request = json!({"id":id,"seq":seq});
+                    self.snapshot.fight = Value::Null;
+                    let _ = self.send(json!({"cmd":"fight","id":id}));
+                } else if open {
+                    let _ = self.send(json!({"cmd":"history","limit":HISTORY_LIMIT}));
                 }
-                self.snapshot.overlay_locked = locked;
-            }
-            Action::TestAlert {} => {
-                self.notice("Test reminder · Shugo Festival starts in 3 minutes".into())
             }
             Action::Navigate { page } => {
                 if !PAGES.contains(&page.as_str()) {
                     return Err("Unknown page".into());
                 }
-                // A new seq each time, so pressing it again on the same page still counts.
+                // A new seq each time, so asking for the same page again still counts.
                 let seq = self.snapshot.nav["seq"].as_u64().unwrap_or(0) + 1;
                 self.snapshot.nav = json!({"page":page,"seq":seq});
             }
-        }
-        Ok(())
-    }
-    fn notice(&mut self, text: String) {
-        self.snapshot.notice = Some(Notice {
-            text,
-            expires: now_ms() + 10_000,
-        });
-        if self.snapshot.preferences.sound {
-            // SAFETY: plays the system notification sound without an HWND.
-            unsafe {
-                windows_sys::Win32::System::Diagnostics::Debug::MessageBeep(0);
+            Action::TestNotification { event } => {
+                if !event.is_object() || event.to_string().len() > 4096 {
+                    return Err("Invalid test notification".into());
+                }
+                let seq = self.snapshot.test_notification["seq"].as_u64().unwrap_or(0) + 1;
+                self.snapshot.test_notification = json!({"event":event,"seq":seq});
             }
-        }
-    }
-    fn sync_overlay(&mut self) -> Result<(), String> {
-        if self.snapshot.preferences.overlay_visible && self.overlay.is_none() {
-            self.snapshot.overlay_locked = false;
-            self.snapshot.overlay_hotkey = false;
-            self.overlay = Some(Overlay::start()?);
-        } else if !self.snapshot.preferences.overlay_visible {
-            self.overlay.take();
-            self.snapshot.overlay_locked = false;
-            self.snapshot.overlay_hotkey = false;
-            self.snapshot.overlay_windows = 0;
-            self.snapshot.overlay_passthrough = false;
+            Action::Chime {} => chime(),
         }
         Ok(())
     }
@@ -326,33 +376,32 @@ impl Actor {
         match value["type"].as_str() {
             Some("state") => self.snapshot.state = value,
             Some("replayFinished") => self.snapshot.replay_complete = true,
-            Some("pets") => self.snapshot.pets = read_pets(value),
+            Some("pets") => self.snapshot.pets = value,
             Some("characters") => self.snapshot.characters = value,
-            Some("pvp") => {
-                self.snapshot.pvp =
-                    serde_json::from_value(value["enemies"].clone()).unwrap_or_default()
-            }
+            Some("pvp") => self.snapshot.pvp = value["enemies"].clone(),
             Some("kina") => self.snapshot.kina.update(
                 value["balance"].as_i64().unwrap_or(-1),
                 value["daily"].as_i64().unwrap_or(-1),
                 now_ms(),
             ),
-            Some("history") => self.snapshot.fights = value["fights"].clone(),
+            Some("history") => {
+                self.snapshot.history = Arc::new(value["fights"].clone());
+                self.snapshot.history_revision += 1;
+            }
             Some("fight") => self.snapshot.fight = value,
             Some("fightSaved") => {
                 let _ = self.send(json!({"cmd":"history","limit":HISTORY_LIMIT}));
             }
-            Some("cube") => match value["event"].as_str() {
-                Some("near") => self.notice(format!(
-                    "Hidden cube nearby · {} m",
-                    value["distance"]
-                        .as_f64()
-                        .map(|d| format!("{d:.0}"))
-                        .unwrap_or("?".into())
-                )),
-                Some("opening") => self.notice("Someone is opening a hidden cube".into()),
-                _ => {}
-            },
+            Some("cubeSpots") => self.snapshot.cube_spots = value["spots"].clone(),
+            Some("cube") => {
+                self.cube_seq += 1;
+                let mut event = value;
+                event["seq"] = json!(self.cube_seq);
+                event["at"] = json!(now_ms());
+                self.snapshot.cube_events.push(event);
+                let extra = self.snapshot.cube_events.len().saturating_sub(CUBE_EVENTS);
+                self.snapshot.cube_events.drain(..extra);
+            }
             _ => {}
         }
     }
@@ -366,9 +415,6 @@ impl Actor {
         {
             self.snapshot.error = Some(e);
         }
-        if let Err(e) = self.sync_overlay() {
-            self.snapshot.error = Some(e);
-        }
         self.publish();
         loop {
             let mut changed = false;
@@ -376,13 +422,13 @@ impl Actor {
                 Ok(Request::Quit) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 Ok(Request::Action(action, reply)) => {
                     let result = self.action(action);
-                    if let Err(e) = &result {
-                        self.snapshot.error = Some(e.clone());
-                    } else {
-                        self.snapshot.error = None;
-                    }
+                    self.snapshot.error = result.as_ref().err().cloned();
                     self.publish();
                     let _ = reply.send(result);
+                }
+                Ok(Request::GameFocus(focused)) => {
+                    changed = self.snapshot.game_focused != focused;
+                    self.snapshot.game_focused = focused;
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
             }
@@ -401,226 +447,160 @@ impl Actor {
                 }
                 changed = true;
             }
-            if let Some(overlay) = &mut self.overlay {
-                if let Ok(event) = overlay.events.try_recv() {
-                    match event["type"].as_str() {
-                        Some("hotkeyReady") => self.snapshot.overlay_hotkey = true,
-                        Some("overlayStatus") => {
-                            self.snapshot.overlay_windows =
-                                event["windows"].as_u64().unwrap_or(0) as usize;
-                            self.snapshot.overlay_passthrough =
-                                event["passthrough"].as_bool().unwrap_or(false);
-                        }
-                        Some("toggleLock") if self.snapshot.overlay_hotkey => {
-                            self.snapshot.overlay_locked = !self.snapshot.overlay_locked
-                        }
-                        Some("hotkeyError") => {
-                            self.snapshot.overlay_hotkey = false;
-                            self.snapshot.overlay_locked = false;
-                            self.snapshot.error = event["error"].as_str().map(str::to_owned);
-                        }
-                        _ => {}
-                    }
-                    changed = true;
-                }
-                if matches!(overlay.child.try_wait(), Ok(Some(_))) {
-                    self.overlay.take();
-                    self.snapshot.overlay_hotkey = false;
-                    self.snapshot.overlay_locked = false;
-                    self.snapshot.preferences.overlay_visible = false;
-                    changed = true;
-                }
-            }
-            let now = now_ms();
-            if self
-                .snapshot
-                .notice
-                .as_ref()
-                .is_some_and(|n| n.expires <= now)
-            {
-                self.snapshot.notice = None;
-                changed = true;
-            }
-            if self.snapshot.state["capture"]["gameRunning"].as_bool() == Some(true) {
-                for (i, (enabled, minute, name)) in [
-                    (self.snapshot.preferences.notify_shugo, 0, "Shugo Festival"),
-                    (
-                        self.snapshot.preferences.notify_invasion,
-                        30,
-                        "Dimensional Invasion",
-                    ),
-                ]
-                .into_iter()
-                .enumerate()
-                {
-                    let next = next_event(now, minute);
-                    if enabled
-                        && next - now <= u64::from(self.snapshot.preferences.event_lead) * 60_000
-                        && self.reminders[i] != next
-                    {
-                        self.reminders[i] = next;
-                        self.notice(format!(
-                            "{name} starts in {} minutes",
-                            (next - now).div_ceil(60_000)
-                        ));
-                        changed = true;
-                    }
-                }
-            }
             if changed {
                 self.publish();
             }
         }
-        self.overlay.take();
         self.backend.take();
     }
 }
 
-pub fn next_event(now: u64, minute: u64) -> u64 {
-    let start = now / 3_600_000 * 3_600_000 + minute * 60_000;
-    if start <= now {
-        start + 3_600_000
+fn check_fight_id(id: &str) -> Result<(), String> {
+    let ok = !id.is_empty()
+        && id.len() <= 160
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if ok {
+        Ok(())
     } else {
-        start
+        Err("Invalid fight ID".into())
     }
 }
 
-type Slot = Arc<(Mutex<(Option<Value>, bool)>, Condvar)>;
-struct Overlay {
-    child: Child,
-    slot: Slot,
-    writer: Option<std::thread::JoinHandle<()>>,
-    events: mpsc::Receiver<Value>,
-}
-impl Overlay {
-    fn start() -> Result<Self, String> {
-        let mut child = Command::new(std::env::current_exe().map_err(|e| e.to_string())?)
-            .arg("--overlay-stdio")
-            .creation_flags(0x0800_0000)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        let mut input = child.stdin.take().ok_or("Overlay input missing")?;
-        let out = child.stdout.take().ok_or("Overlay output missing")?;
-        let slot: Slot = Arc::new((Mutex::new((None, false)), Condvar::new()));
-        let shared = slot.clone();
-        let writer = std::thread::spawn(move || {
-            loop {
-                let (mutex, ready) = &*shared;
-                let mut pending = mutex.lock().unwrap_or_else(|e| e.into_inner());
-                while pending.0.is_none() && !pending.1 {
-                    pending = ready.wait(pending).unwrap_or_else(|e| e.into_inner());
-                }
-                if pending.1 {
-                    break;
-                }
-                let value = pending.0.take().unwrap();
-                drop(pending);
-                if writeln!(input, "{value}")
-                    .and_then(|_| input.flush())
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let (tx, events) = mpsc::sync_channel(8);
-        std::thread::spawn(move || {
-            for line in BufReader::new(out).lines() {
-                let Ok(line) = line else { break };
-                if let Ok(event) = serde_json::from_str(&line)
-                    && tx.send(event).is_err()
-                {
-                    break;
-                }
-            }
-        });
-        Ok(Self {
-            child,
-            slot,
-            writer: Some(writer),
-            events,
-        })
-    }
-    fn push(&self, value: Value) {
-        self.slot.0.lock().unwrap_or_else(|e| e.into_inner()).0 = Some(value);
-        self.slot.1.notify_one();
-    }
-}
-impl Drop for Overlay {
-    fn drop(&mut self) {
-        self.slot.0.lock().unwrap_or_else(|e| e.into_inner()).1 = true;
-        self.slot.1.notify_one();
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        if let Some(writer) = self.writer.take() {
-            let _ = writer.join();
-        }
+/// The Linux overlay's chime (overlay/sounds/cube.wav), without waiting for it.
+fn chime() {
+    use windows_sys::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_MEMORY, SND_NODEFAULT};
+    static WAV: &[u8] = include_bytes!("../../overlay/sounds/cube.wav");
+    // SAFETY: SND_MEMORY reads the static WAV; it outlives the asynchronous play.
+    unsafe {
+        PlaySoundW(
+            WAV.as_ptr().cast(),
+            std::ptr::null_mut(),
+            SND_MEMORY | SND_ASYNC | SND_NODEFAULT,
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn actor() -> Actor {
+        Actor {
+            cache: Arc::new(Mutex::new(Snapshot::default())),
+            snapshot: Snapshot::default(),
+            backend: None,
+            on_publish: Box::new(|_| {}),
+            cube_seq: 0,
+        }
+    }
+
     #[test]
     fn capture_exit_invalidates_live_widgets_but_retains_saved_data() {
         let mut snapshot = Snapshot {
             running: true,
-            state: json!({"capture":{"locked":true,"gameRunning":true},"pingMs":40,
-                "players":[{"damage":1000}],"target":{"currentHp":50}}),
-            fights: json!([{"id":"saved"}]),
+            state: json!({"capture":{"locked":true},"players":[{"damage":1000}]}),
+            pvp: json!([{"id":5}]),
+            history: Arc::new(json!([{"id":"saved"}])),
             pets: json!({"levels":{"1002":1}}),
             ..Snapshot::default()
         };
         snapshot.clear_live_state();
         assert!(!snapshot.running);
-        assert_eq!(snapshot.state, json!({}));
-        assert_eq!(snapshot.fights[0]["id"], "saved");
+        assert!(snapshot.state.is_null());
+        assert_eq!(snapshot.pvp, json!([]));
+        assert_eq!(snapshot.history[0]["id"], "saved");
         assert_eq!(snapshot.pets["levels"]["1002"], 1);
     }
+
     #[test]
-    fn characters_pvp_and_kina_messages_reach_the_snapshot() {
-        let mut actor = Actor {
-            cache: Arc::new(Mutex::new(Snapshot::default())),
-            snapshot: Snapshot::default(),
-            backend: None,
-            overlay: None,
-            reminders: [0; 2],
-        };
-        actor.message(json!({"type":"characters","playing":"Naicha","list":[{"name":"Naicha"}]}));
-        actor
-            .message(json!({"type":"pvp","enemies":[{"id":5,"name":"Foe","hp":-1,"fought":true}]}));
-        actor.message(json!({"type":"kina","balance":1000,"daily":20}));
-        actor.message(json!({"type":"kina","balance":1500,"daily":520}));
-        assert_eq!(actor.snapshot.characters["playing"], "Naicha");
-        assert_eq!(actor.snapshot.pvp[0].name, "Foe");
-        assert_eq!(
-            (actor.snapshot.kina.gained, actor.snapshot.kina.daily),
-            (500, 520)
-        );
-        // Enemies are live data: they go with the capture.
-        actor.snapshot.clear_live_state();
-        assert!(actor.snapshot.pvp.is_empty());
-        assert_eq!(actor.snapshot.characters["playing"], "Naicha");
+    fn daemon_messages_land_where_the_linux_client_keeps_them() {
+        let mut a = actor();
+        a.message(json!({"type":"characters","playing":"Naicha","list":[{"name":"Naicha"}]}));
+        a.message(json!({"type":"pvp","enemies":[{"id":5,"name":"Foe"}]}));
+        a.message(json!({"type":"kina","balance":1000,"daily":20}));
+        a.message(json!({"type":"kina","balance":1500,"daily":520}));
+        a.message(json!({"type":"pets","ready":false,"farming":[{"pet":1002}]}));
+        a.message(json!({"type":"cubeSpots","spots":{"110":[[1,2,3]]}}));
+        assert_eq!(a.snapshot.characters["playing"], "Naicha");
+        assert_eq!(a.snapshot.pvp[0]["name"], "Foe");
+        assert_eq!((a.snapshot.kina.gained, a.snapshot.kina.daily), (500, 520));
+        // Kept as sent, ready or not: the souls widget reads what's being farmed.
+        assert_eq!(a.snapshot.pets["farming"][0]["pet"], 1002);
+        assert_eq!(a.snapshot.cube_spots["110"][0][2], 3);
     }
+
+    #[test]
+    fn cube_messages_queue_with_a_rising_seq_and_old_ones_drop() {
+        let mut a = actor();
+        for id in 0..40 {
+            a.message(json!({"type":"cube","event":"near","id":id}));
+        }
+        assert_eq!(a.snapshot.cube_events.len(), CUBE_EVENTS);
+        assert_eq!(a.snapshot.cube_events[0]["seq"], 9);
+        assert_eq!(a.snapshot.cube_events.last().unwrap()["seq"], 40);
+    }
+
+    #[test]
+    fn hide_toggles_the_overlay_setting() {
+        let mut a = actor();
+        // Without saving to the real data folder: only the in-memory flip.
+        let mut v = a.snapshot.settings.clone();
+        let hidden = settings::hide_widgets(&v);
+        settings::set_hide_widgets(&mut v, !hidden);
+        a.snapshot.settings = v;
+        assert!(settings::hide_widgets(&a.snapshot.settings));
+    }
+
+    #[test]
+    fn edit_mode_toggles_or_is_set() {
+        let mut a = actor();
+        a.action(Action::Edit { on: None }).unwrap();
+        assert!(a.snapshot.edit_mode);
+        a.action(Action::Edit { on: Some(true) }).unwrap();
+        assert!(a.snapshot.edit_mode);
+        a.action(Action::Edit { on: None }).unwrap();
+        assert!(!a.snapshot.edit_mode);
+    }
+
+    #[test]
+    fn history_panel_opens_on_a_fight_with_a_fresh_request() {
+        let mut a = actor();
+        let open = |fight: Option<&str>| Action::HistoryPanel {
+            open: None,
+            fight: fight.map(str::to_string),
+        };
+        a.action(open(None)).unwrap();
+        assert!(a.snapshot.history_open);
+        a.action(open(None)).unwrap();
+        assert!(!a.snapshot.history_open);
+        a.action(open(Some("auto_1_2"))).unwrap();
+        assert!(a.snapshot.history_open);
+        assert_eq!(a.snapshot.history_request, json!({"id":"auto_1_2","seq":1}));
+        assert!(a.action(open(Some("../x"))).is_err());
+    }
+
     #[test]
     fn navigate_names_a_known_page_with_a_fresh_seq() {
-        let mut actor = Actor {
-            cache: Arc::new(Mutex::new(Snapshot::default())),
-            snapshot: Snapshot::default(),
-            backend: None,
-            overlay: None,
-            reminders: [0; 2],
-        };
+        let mut a = actor();
         let go = |page: &str| Action::Navigate { page: page.into() };
-        actor.action(go("overlays")).unwrap();
-        actor.action(go("overlays")).unwrap();
-        assert_eq!(actor.snapshot.nav, json!({"page":"overlays","seq":2}));
-        assert!(actor.action(go("../etc")).is_err());
-        assert_eq!(actor.snapshot.nav["seq"], 2);
+        a.action(go("analytics")).unwrap();
+        a.action(go("analytics")).unwrap();
+        assert_eq!(a.snapshot.nav, json!({"page":"analytics","seq":2}));
+        assert!(a.action(go("../etc")).is_err());
     }
+
+    #[test]
+    fn webview_commands_are_typed_and_reject_unexpected_input() {
+        assert!(
+            serde_json::from_value::<Action>(json!({"action":"shell","command":"anything"}))
+                .is_err()
+        );
+        assert!(serde_json::from_value::<Action>(json!({"action":"reset","extra":true})).is_err());
+        assert!(serde_json::from_value::<Action>(json!({"action":"target","mode":"x"})).is_ok());
+    }
+
     #[test]
     fn an_unchanged_snapshot_is_not_copied_again() {
         let session = Session {
@@ -634,19 +614,5 @@ mod tests {
         assert!(session.snapshot_since(Some(4)).is_none());
         assert_eq!(session.snapshot_since(Some(3)).unwrap().revision, 4);
         assert!(session.snapshot_since(None).is_some());
-    }
-    #[test]
-    fn hourly_reminders_advance_once_and_cross_midnight() {
-        assert_eq!(next_event(0, 0), 3_600_000);
-        assert_eq!(next_event(1_700_000, 30), 1_800_000);
-        assert_eq!(next_event(1_800_000, 30), 5_400_000);
-    }
-    #[test]
-    fn native_commands_are_typed_and_reject_unexpected_input() {
-        assert!(
-            serde_json::from_value::<Action>(json!({"action":"shell","command":"anything"}))
-                .is_err()
-        );
-        assert!(serde_json::from_value::<Action>(json!({"action":"reset","extra":true})).is_err());
     }
 }

@@ -19,14 +19,8 @@ if (-not $?) { throw 'Build failed.' }
 $setup = Join-Path $root "dist/aion2-meter-$version-x86_64-windows-setup.exe"
 if (-not (Test-Path -LiteralPath $setup)) { throw "Installer not found: $setup" }
 
-# The installer can't replace files the app has open. Capture saves fights every
-# few seconds, so at most the last moments of a running fight are lost.
-$running = Get-Process -Name 'aion2-meter-windows', 'aion2-meterd' -ErrorAction SilentlyContinue
-if ($running) {
-    Write-Output 'Closing the running Daevalog'
-    $running | Stop-Process -Force
-    Start-Sleep -Seconds 1
-}
+# The installer can't replace files the app has open.
+& "$PSScriptRoot/close-daevalog.ps1"
 
 Write-Output 'Installing'
 # The installer reuses the folder it last installed to; one under Temp (a test

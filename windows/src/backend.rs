@@ -6,7 +6,6 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
-use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -184,50 +183,6 @@ impl Drop for Backend {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
-}
-
-pub enum Hotkey {
-    Ready,
-    Toggle,
-    Error(String),
-}
-
-pub fn hotkey(ctx: egui::Context) -> Receiver<Hotkey> {
-    use windows_sys::Win32::UI::{
-        Input::KeyboardAndMouse::{MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, RegisterHotKey},
-        WindowsAndMessaging::{GetMessageW, MSG, WM_HOTKEY},
-    };
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        // SAFETY: hotkey belongs to this thread's message queue, with no HWND.
-        unsafe {
-            let modifiers = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
-            // Isolated native QA does not compete with an already running user's meter.
-            #[cfg(feature = "ui-smoke")]
-            let modifiers = if std::env::var_os("AION2_COMPANION_SMOKE_REPORT").is_some() {
-                modifiers | windows_sys::Win32::UI::Input::KeyboardAndMouse::MOD_SHIFT
-            } else {
-                modifiers
-            };
-            if RegisterHotKey(std::ptr::null_mut(), 1, modifiers, u32::from(b'M')) == 0 {
-                let _ = tx.send(Hotkey::Error("Ctrl+Alt+M is in use. Click-through is disabled; close the other hotkey app and restart to enable it.".into()));
-                ctx.request_repaint();
-                return;
-            }
-            let _ = tx.send(Hotkey::Ready);
-            ctx.request_repaint();
-            let mut msg: MSG = std::mem::zeroed();
-            while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
-                if msg.message == WM_HOTKEY {
-                    if tx.send(Hotkey::Toggle).is_err() {
-                        break;
-                    }
-                    ctx.request_repaint();
-                }
-            }
-        }
-    });
-    rx
 }
 
 #[cfg(test)]

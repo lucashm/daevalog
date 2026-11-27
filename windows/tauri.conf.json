@@ -12,16 +12,16 @@
       "label": "main",
       "create": false,
       "title": "Daevalog",
-      "width": 1320,
-      "height": 860,
-      "minWidth": 860,
+      "width": 1480,
+      "height": 940,
+      "minWidth": 900,
       "minHeight": 600,
-      "backgroundColor": "#0b141a",
-      "decorations": false,
+      "backgroundColor": "#0B0C0E",
+      "visible": false,
       "devtools": false
     }],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; script-src 'self'",
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob: https://assets.playnccdn.com https://resource-aion2.tc-imba.com; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost https://data-aion2.tc-imba.com https://resource-aion2.tc-imba.com; script-src 'self'",
       "capabilities": []
     }
   },
